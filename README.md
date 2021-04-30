@@ -1,24 +1,12 @@
-## Features
-- Versioning done with GitVersion.
-- Can build via:
-  - AppVeyor
-  - Azure Devops Pipelines
-  - GitHub Actions
- 
-- All projects will be SourceLinked to github thanks to `directory.props` file.
-- Version numbering produced via GitVersion
-- dotnet-format checks formatting errors
-  - If building via GitHub Actions, the workflow will auto fix and push formatting fixes without failing the build.
+# Stint
 
-# [Getting Started]
-- Clone this repo, then push to your own origin.
-- Create your solution (.sln) and projects in the `/src` directory.
-- Make sure global.json has the right version of the .net sdk that you require.
-- If you want to run the `dotnet-format` and `gitversion` tools (that are used as part of the CI builds) locally, then install them by running the following command in the repo root directory:
-    `dotnet tool restore`
-- For AppVeyor builds, update AppVeyor.yml:
-    - dotnet sdk version (currently set to install latest pre-release).
-    - Now you can add to AppVeyor.
-- For Azure Devops builds:
-    - Import pipelines yaml file into Azure Devops pipeline.
-- For GitHub Actions - the workflow file is detected automatically when you push up and should be run.
+> a fixed period of time during which a person holds a job or position
+
+Stint allows your existing dotnet application to run jobs.
+
+  - `Stint.Cli` allows you to extend your existing `Main` application entrypoint, to support some additional commands used for installing your application as a 
+    `systemd` service on linux, or a windows service on windows. This makes it super easy for someone to download your application to their linux or windows machine and then run it with some command line arguments to have it installed as a service on their machine - so it's ready to run jobs appropriately.
+  - `Stint.Scheduler` provides all the classes needed to create and configure a scheduler, which will execute jobs.
+ 
+# Getting Started
+- TODO

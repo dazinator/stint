@@ -1,10 +1,14 @@
-name: .NET
+name: 'Build Source Branch'
 
 on:
   push:
-    branches: [ master, develop ]
-  pull_request:
-    branches: [ master, develop ]
+    branches:
+      - 'master'
+      - 'develop'
+      - 'feature/*'
+      - 'release/*'        
+#  pull_request:
+#    branches: [ master, develop ]
 
 jobs:
   dotnet-format:
@@ -18,8 +22,8 @@ jobs:
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: 3.1.x
+#        with:
+#          dotnet-version: 3.1.x
 
       - name: Restore dotnet tools
         run: dotnet tool restore
@@ -58,9 +62,7 @@ jobs:
         fetch-depth: 0
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 3.1.x
+      uses: actions/setup-dotnet@v1      
 
     - name: Restore dotnet tools
       run: dotnet tool restore 

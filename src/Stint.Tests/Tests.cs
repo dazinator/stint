@@ -30,7 +30,7 @@ namespace Stint.Tests
         {
 
             var inMemoryConfig = new Dictionary<string, string>();
-           // inMemoryConfig.Add("Scheduler", "");
+            // inMemoryConfig.Add("Scheduler", "");
             inMemoryConfig.Add($"Scheduler:Jobs:{nameof(TestJob)}:Schedule", "* * * * *");
             inMemoryConfig.Add($"Scheduler:Jobs:{nameof(TestJob)}:Type", nameof(TestJob));
 

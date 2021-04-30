@@ -1,0 +1,78 @@
+name: .NET
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  dotnet-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal token
+          fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 3.1.x
+
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+
+      - name: Apply formatting fixes
+        run: dotnet format src
+
+      - name: Check if there are changes
+        id: changes
+        uses: UnicornGlobal/has-changes-action@v1.0.11
+
+      - name: Commit files
+        if: steps.changes.outputs.changed == 1
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -a -m 'Automated dotnet-format update
+
+          Co-authored-by: ${{ github.event.comment.user.login }} <${{ github.event.comment.user.id }}+${{ github.event.comment.user.login }}@users.noreply.github.com>'
+      
+      - name: Push changes
+        #if: steps.command.outputs.command-name && steps.command.outputs.command-arguments == 'format' && steps.format.outputs.has-changes == 'true'
+        uses: ad-m/github-push-action@v0.5.0
+        with:
+          branch: ${{ github.ref }}         
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GitVersion.SemVer:
+    steps:    
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 3.1.x
+
+    - name: Restore dotnet tools
+      run: dotnet tool restore 
+
+    - name: Determine Version
+      run: dotnet gitversion /l console /output buildserver
+
+    - name: Restore dependencies
+      run: dotnet restore src
+
+    - name: Build
+      run: dotnet build src --no-restore --configuration Release /p:Version=${{ env.GitVersion_SemVer }}
+
+    - name: Test
+      run: dotnet test src -c Release --no-build --verbosity normal

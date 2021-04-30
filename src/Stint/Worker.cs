@@ -1,4 +1,4 @@
-namespace Scheduler
+namespace Stint
 {
     using System;
     using System.Collections.Generic;
@@ -15,6 +15,8 @@ namespace Scheduler
     {
         private readonly Func<IChangeToken> _changeTokenProducer;
         private readonly IDisposable _changeTokenProducerLifetime;
+
+        private readonly Dictionary<string, ScheduledJobRunner> _jobs = new Dictionary<string, ScheduledJobRunner>();
         private readonly ILogger<Worker> _logger;
         private readonly IOptionsMonitor<SchedulerConfig> _optionsMonitor;
         private readonly IServiceProvider _serviceProvider;
@@ -23,8 +25,6 @@ namespace Scheduler
         private Task _allRunningJobs;
 
         private CancellationTokenSource _cts;
-
-        private readonly Dictionary<string, ScheduledJobRunner> _jobs = new Dictionary<string, ScheduledJobRunner>();
         private IDisposable _listeningForJobsChanges;
         private TaskCompletionSource<bool> _taskCompletionSource;
 

@@ -1,4 +1,4 @@
-namespace Scheduler
+namespace Stint
 {
     using System.Threading;
     using System.Threading.Tasks;

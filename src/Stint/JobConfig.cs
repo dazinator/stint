@@ -1,21 +1,22 @@
-namespace Scheduler
+namespace Stint
 {
     using System;
 
     public class JobConfig
     {
-        public JobConfig(string type, string schedule)
+        public JobConfig()
         {
-            Type = type;
-            Schedule = schedule;
+
         }
 
+        // ReSharper disable once UnusedAutoPropertyAccessor.Global
         public string Schedule { get; set; }
 
         // public List<string> InputLists { get; set; }
         //  public string Name { get; set; }
 
-        public string Type { get; }
+        // ReSharper disable once UnusedAutoPropertyAccessor.Global
+        public string Type { get; set; }
 
         public override bool Equals(object obj) => Equals(obj as JobConfig);
 

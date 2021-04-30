@@ -1,4 +1,5 @@
-namespace Scheduler.Cli
+namespace Stint.Cli
+
 {
     using System;
     using System.Diagnostics;

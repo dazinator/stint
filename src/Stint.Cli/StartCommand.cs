@@ -1,4 +1,5 @@
-namespace Scheduler.Cli
+namespace Stint.Cli
+
 {
     using System;
     using System.CommandLine;
@@ -7,7 +8,7 @@ namespace Scheduler.Cli
 
     public class StartCommand : Command
     {
-        public const string CommandName = "start";
+        private const string CommandName = "start";
 
         public StartCommand(Func<Task<int>> startAysncCallback) : base(CommandName) =>
             Handler = CommandHandler.Create(async () =>

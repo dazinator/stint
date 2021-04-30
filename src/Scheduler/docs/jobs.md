@@ -8,25 +8,11 @@ Edit this section:
 
 ```json
 "JobsService": {
-    "Subscription": {
-      "Username": "foo",
-      "Pin": 12345
-    },
     "Jobs": [
-      {
-        "InputLists": [
-          "aowijdawiod",
-          "adawdwa"
-        ],
-        "Output": "single.p2p",
+      {       
         "Schedule": "[CRON]"
       },
-      {
-        "InputLists": [
-          "aowijdawiod",
-          "adawdwa"
-        ],
-        "Output": "single.p2p",
+      {       
         "Schedule": "[CRON]"
       }
     ]
@@ -34,12 +20,9 @@ Edit this section:
 
 ```
 
-Put in your IBlocklist subscription details.
 Under the "Jobs" section you can have multiple jobs configured, each has:
 
-- InputLists - these are the IBlocklist lists that you want the job to download.
-- Output - this is the filename you want all of the lists to be combined into and output.
-- Schedule - this is a CRON expression that determines when you want this to happen.
+- Schedule - this is a CRON expression that determines when you want this job to run.
 
 For the CRON expression syntax, see: https://github.com/HangfireIO/Cronos#cron-format
 

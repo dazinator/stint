@@ -107,7 +107,7 @@ namespace Scheduler
             var jobsToAdd = configKeys.Except(jobsKeys).ToArray();
             _logger.LogInformation("{x} jobs to add.", jobsToAdd?.Length ?? 0);
 
-            // yuck, clean this up later. 
+            // yuck, clean this up later.
             // Basically getting all jobs where the options in the config are now actually different that to what they were previously.
             var jobsToUpdate =
                 configKeys.Join(jobsKeys, a => a, b => b, (a, b) => a)
@@ -143,7 +143,7 @@ namespace Scheduler
                 //Note: this looks like a resolution root?
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
                 var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), _settingsStore, logger,
-                    _serviceProvider);
+                    _serviceProvider.GetRequiredService<IServiceScopeFactory>());
                 var started = newJob.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, newJob);
@@ -171,7 +171,7 @@ namespace Scheduler
                 //Note: this looks like a resolution root?
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
                 var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), _settingsStore, logger,
-                    _serviceProvider);
+                    _serviceProvider.GetRequiredService<IServiceScopeFactory>());
                 var started = jobLifetime.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, jobLifetime);
@@ -191,7 +191,7 @@ namespace Scheduler
 
             var allJobs = Task.WhenAll(jobTasks).ContinueWith(t =>
             {
-                // all jobs have complete because service is terminating                
+                // all jobs have complete because service is terminating
                 if (stoppingToken.IsCancellationRequested)
                 {
                     _logger.LogInformation("All jobs cancelled.");

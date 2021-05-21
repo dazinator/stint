@@ -1,4 +1,4 @@
-namespace Stint
+namespace Stint.Utils
 {
     using System;
     using System.Threading;

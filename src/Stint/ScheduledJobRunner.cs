@@ -7,6 +7,7 @@ namespace Stint
     using Cronos;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
+    using Utils;
 
     public class ScheduledJobRunner : IDisposable
     {

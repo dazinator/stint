@@ -10,6 +10,7 @@ namespace Stint
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Extensions.Primitives;
+    using BackgroundService = Utils.BackgroundService;
 
     public class Worker : BackgroundService
     {
@@ -46,13 +47,13 @@ namespace Stint
             _changeTokenProducerLifetime = producerLifetime;
         }
 
-        public IHostEnvironment Environment { get; }
+        private IHostEnvironment Environment { get; }
 
-        public void StartListeningForJobConfigChanges() =>
+        private void StartListeningForJobConfigChanges() =>
             // reload if tokens signalled.
             _listeningForJobsChanges = ChangeToken.OnChange(_changeTokenProducer, OnJobsChanged);
 
-        public void StopListeningForJobConfigChanges() =>
+        private void StopListeningForJobConfigChanges() =>
             // reload if tokens signalled.
             _listeningForJobsChanges?.Dispose();
 

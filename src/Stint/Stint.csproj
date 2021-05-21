@@ -4,7 +4,6 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <UserSecretsId>stint-Scheduler-E8179A4C-7A71-4C4D-A098-61C34BA1CD42</UserSecretsId>
     <PackageName>Stint.Scheduler</PackageName>
-    <RootNamespace>Scheduler</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

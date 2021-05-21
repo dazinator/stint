@@ -77,7 +77,10 @@ jobs:
       run: dotnet build src --no-restore --configuration Release /p:Version=${{ env.GitVersion_SemVer }}
 
     - name: Test
-      run: dotnet test src -c Release --no-build --verbosity normal
+      run: dotnet test src -c Release --no-build --no-restore --verbosity normal
+
+    - name: Pack
+      run: dotnet pack src -c Release --no-build --no-restore --verbosity normal
 
     - name: Publish
       if: startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/develop')

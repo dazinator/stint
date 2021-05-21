@@ -62,6 +62,10 @@ namespace Stint
                 // {
                 var now = DateTime.UtcNow;
                 var previousOccurrence = await _anchorStore.GetAnchorAsync(token);
+                if (previousOccurrence == null)
+                {
+                    _logger.LogInformation("Job has not previously run");
+                }
                 // DateTime? missedOccurrence = null;
                 //bool overdue = false;
                 //}
@@ -84,6 +88,8 @@ namespace Stint
                     // this job is over..
                     return;
                 }
+
+                _logger.LogInformation("Next occurrence {occurrence}", occurrence);
 
 
                 // if the next occurrence is in the past

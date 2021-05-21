@@ -22,7 +22,7 @@ namespace Stint.Tests
                 }
             ).Build().RunAsync();
 
-            var signalled = jobRanEvent.WaitOne(10000);
+            var signalled = jobRanEvent.WaitOne(60000);
             Assert.True(signalled);
         }
 

@@ -78,3 +78,7 @@ jobs:
 
     - name: Test
       run: dotnet test src -c Release --no-build --verbosity normal
+
+    - name: Publish
+      if: startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/develop')
+      run: nuget push **\*.nupkg -Source 'https://api.nuget.org/v3/index.json' -ApiKey ${{secrets.NUGET_API_KEY}}

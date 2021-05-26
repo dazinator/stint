@@ -24,7 +24,7 @@ namespace Stint
                 IJobSettingsStore optionsStore,
                 ILogger<ScheduledJobRunner> logger,
                 IServiceScopeFactory serviceScopeFactory)
-            // Func<IChangeToken> changeTokenProducer)
+        // Func<IChangeToken> changeTokenProducer)
         {
             Name = name;
             JobConfig = jobConfig;

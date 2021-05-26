@@ -1,4 +1,4 @@
-namespace Stint.Utils
+namespace Stint.Changify
 {
     using System;
     using System.Threading;

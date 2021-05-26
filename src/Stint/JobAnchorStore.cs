@@ -6,7 +6,7 @@ namespace Stint
     using System.Threading;
     using System.Threading.Tasks;
 
-    public class JobAnchorStore
+    public class JobAnchorStore : IAnchorStore
     {
         private readonly string _contentPath;
         private readonly string _name;

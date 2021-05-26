@@ -4,18 +4,20 @@ namespace Stint
 
     public class ExecutionInfo
     {
-        public ExecutionInfo(string name, DateTime? previousOccurrence, DateTime occurrence,
+        public ExecutionInfo(string name,
+            // DateTime? previousOccurrence,
+            // DateTime occurrence,
             IJobSettingsStore optionsStore)
         {
             Name = name;
-            PreviousOccurrence = previousOccurrence;
-            Occurrence = occurrence;
+            // PreviousOccurrence = previousOccurrence;
+            // Occurrence = occurrence;
             OptionsStore = optionsStore;
         }
 
         public string Name { get; }
-        public DateTime? PreviousOccurrence { get; }
-        public DateTime Occurrence { get; }
+        // public DateTime? PreviousOccurrence { get; }
+        // public DateTime Occurrence { get; }
         private IJobSettingsStore OptionsStore { get; }
 
         public TOptions GetOptions<TOptions>()

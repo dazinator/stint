@@ -4,25 +4,27 @@ namespace Stint
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using Changify;
     using Cronos;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
-    using Utils;
+    using Microsoft.Extensions.Primitives;
 
     public class ScheduledJobRunner : IDisposable
     {
-        private readonly JobAnchorStore _anchorStore;
+        private readonly IAnchorStore _anchorStore;
         private readonly ILogger<ScheduledJobRunner> _logger;
         private readonly IJobSettingsStore _optionsStore;
         private readonly IServiceScopeFactory _serviceScopeFactory;
 
         public ScheduledJobRunner(
-            string name,
-            JobConfig jobConfig,
-            JobAnchorStore anchorStore,
-            IJobSettingsStore optionsStore,
-            ILogger<ScheduledJobRunner> logger,
-            IServiceScopeFactory serviceScopeFactory)
+                string name,
+                JobConfig jobConfig,
+                IAnchorStore anchorStore,
+                IJobSettingsStore optionsStore,
+                ILogger<ScheduledJobRunner> logger,
+                IServiceScopeFactory serviceScopeFactory)
+            // Func<IChangeToken> changeTokenProducer)
         {
             Name = name;
             JobConfig = jobConfig;
@@ -30,9 +32,9 @@ namespace Stint
             _optionsStore = optionsStore;
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
+            // _changeTokenProducer = changeTokenProducer;
         }
 
-        public CronExpression CronExpression { get; set; }
         public CancellationTokenSource CancellationTokenSource { get; set; }
         public string Name { get; }
         public JobConfig JobConfig { get; }
@@ -45,90 +47,51 @@ namespace Stint
 
         public Task RunAsync(CancellationToken cancellationToken)
         {
+            // consider
+            // Subscribing to a change token producer, signalled by a scheduled trigger.
+
             CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             return RunToScheduleAsync(CancellationTokenSource.Token);
         }
 
         public async Task RunToScheduleAsync(CancellationToken token)
         {
+            // DateTime? previousOccurrence = null;
+
             // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
             // If its wrong the job should not be created.
             var expression = CronExpression.Parse(JobConfig.Schedule);
-            // DateTime? previousOccurrence = null;
+            var delayTrigger = new ScheduledChangeTokenProducer(_anchorStore, _logger, (fromWhen) =>
+            {
+               return expression.GetNextOccurrence(fromWhen);
+            }, token);
+
+            var tokenProducer = new ChangeTokenProducerBuilder()
+                .Include(delayTrigger)
+                .Build(out var producerLifetime);
 
             while (!token.IsCancellationRequested)
             {
-                // if (previousOccurrence == null)
-                // {
-                var now = DateTime.UtcNow;
-                var previousOccurrence = await _anchorStore.GetAnchorAsync(token);
-                if (previousOccurrence == null)
+                await tokenProducer.DelayUntilChangeSignalledAsync();
+                if (token.IsCancellationRequested)
                 {
-                    _logger.LogInformation("Job has not previously run");
-                }
-                // DateTime? missedOccurrence = null;
-                //bool overdue = false;
-                //}
-                // if (previousOccurrence != null)
-                // {
-                //     var firstMissedOccurrence = expression.GetOccurrences(previousOccurrence.Value, now, false, true).FirstOrDefault();
-                //     if (firstMissedOccurrence != default)
-                //     {
-                //         missedOccurrence = firstMissedOccurrence;
-                //     }
-                // }
-
-                var fromWhenShouldItNextRun =
-                    previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now!
-
-                var occurrence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
-                if (occurrence == null)
-                {
-                    // job won't occur again based on this schedule..
-                    // this job is over..
+                    _logger.LogWarning("Job cancelled");
                     return;
                 }
-
-                _logger.LogInformation("Next occurrence {occurrence}", occurrence);
-
-
-                // if the next occurrence is in the past
-
-
-                // calculate time in milliseconds from now until then.
-                // if it's in the future, wait until then!
-                var difference = occurrence.Value - now;
-                if (difference.TotalMilliseconds > 0)
-                {
-                    // wait until next occurence.
-                    // TimeSpan.FromMilliseconds(difference.TotalMilliseconds);
-                    _logger.LogInformation("Waiting for {timespan}", difference);
-
-                    // Task.Delay only allows a max timespan of approx 25 days. If delay is longer than that it will throw.
-                    // So here we allow the delay to be broken into multiple delays where it could be longer than the max a single Task.Delay can deal with.
-                    var totalMs = (long)difference.TotalMilliseconds;
-                    await LongDelay.For(totalMs, token);
-                    //  await Task.Delay(difference);
-                    // // var delayInMs = (long)difference.TotalMilliseconds;
-                    // await LongDelay.For(, token, (ms) =>
-                    // {
-
-                    // });
-                    if (token.IsCancellationRequested)
-                    {
-                        _logger.LogWarning("Job cancelled");
-                        return;
-                    }
-                }
-
                 // run now!
-                var jobInfo = new ExecutionInfo(Name, previousOccurrence, occurrence.Value, _optionsStore);
+                var jobInfo = new ExecutionInfo(Name, _optionsStore);
 
                 // TODO: Add options for retrying when failure.
                 await ExecuteScheduledJob(JobConfig.Type, jobInfo, token);
                 var newAnchor = await _anchorStore.DropAnchorAsync(token);
+                if (token.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Job cancelled");
+                    return;
+                }
             }
         }
+
 
         protected virtual async Task ExecuteScheduledJob(string jobTypeName, ExecutionInfo runInfo,
             CancellationToken token)

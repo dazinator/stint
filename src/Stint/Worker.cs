@@ -216,7 +216,7 @@ namespace Stint
             }
         }
 
-        private JobAnchorStore GetAnchorStore(string name) => new JobAnchorStore(Environment.ContentRootPath, name);
+        private IAnchorStore GetAnchorStore(string name) => new JobAnchorStore(Environment.ContentRootPath, name);
 
         public override void Dispose()
         {

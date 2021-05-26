@@ -14,6 +14,7 @@ namespace Stint.Tests
         [Fact]
         public void Can_Run_Scheduled_Job()
         {
+
             var jobRanEvent = new AutoResetEvent(false);
 
             var hostBuilderTask = CreateHostBuilder(() =>

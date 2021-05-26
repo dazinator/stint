@@ -61,13 +61,9 @@ namespace Stint
             // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
             // If its wrong the job should not be created.
             var expression = CronExpression.Parse(JobConfig.Schedule);
-            var delayTrigger = new ScheduledChangeTokenProducer(_logger, async (c) =>
-            {
-                return await _anchorStore.GetAnchorAsync(c);
-            }, (fromWhen) =>
-            {
-                return expression.GetNextOccurrence(fromWhen);
-            }, token);
+            var delayTrigger = new ScheduledChangeTokenProducer(_logger,
+                async (c) => await _anchorStore.GetAnchorAsync(c),
+                (fromWhen) => expression.GetNextOccurrence(fromWhen), token);
 
 
             var tokenProducer = new ChangeTokenProducerBuilder()

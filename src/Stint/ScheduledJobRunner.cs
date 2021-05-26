@@ -24,7 +24,7 @@ namespace Stint
                 IJobSettingsStore optionsStore,
                 ILogger<ScheduledJobRunner> logger,
                 IServiceScopeFactory serviceScopeFactory)
-            // Func<IChangeToken> changeTokenProducer)
+        // Func<IChangeToken> changeTokenProducer)
         {
             Name = name;
             JobConfig = jobConfig;
@@ -63,7 +63,7 @@ namespace Stint
             var expression = CronExpression.Parse(JobConfig.Schedule);
             var delayTrigger = new ScheduledChangeTokenProducer(_anchorStore, _logger, (fromWhen) =>
             {
-               return expression.GetNextOccurrence(fromWhen);
+                return expression.GetNextOccurrence(fromWhen);
             }, token);
 
             var tokenProducer = new ChangeTokenProducerBuilder()

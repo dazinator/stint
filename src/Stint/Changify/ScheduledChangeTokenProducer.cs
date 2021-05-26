@@ -2,6 +2,7 @@ namespace Stint.Changify
 {
     using System;
     using System.Threading;
+    using System.Threading.Tasks;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
 
@@ -11,21 +12,24 @@ namespace Stint.Changify
     /// </summary>
     public class ScheduledChangeTokenProducer : IChangeTokenProducer
     {
+        private readonly Func<CancellationToken, Task<DateTime?>> _getLastRanTime;
         private readonly DelayChangeTokenProducer _innerProducer;
 
         public ScheduledChangeTokenProducer(
-            IAnchorStore anchorStore,
             ILogger logger,
+            Func<CancellationToken, Task<DateTime?>> getLastRanTimeAsync,
             Func<DateTime, DateTime?> getNextOccurrence,
             CancellationToken cancellationToken)
         {
+            _getLastRanTime = getLastRanTimeAsync;
             var logger1 = logger;
             var cancellationToken1 = cancellationToken;
 
             _innerProducer = new DelayChangeTokenProducer(async () =>
             {
                 var now = DateTime.UtcNow;
-                var previousOccurrence = await anchorStore.GetAnchorAsync(cancellationToken1);
+                var previousOccurrence = await _getLastRanTime.Invoke(cancellationToken1);
+
                 if (previousOccurrence == null)
                 {
                     logger1.LogInformation("Job has not previously run");

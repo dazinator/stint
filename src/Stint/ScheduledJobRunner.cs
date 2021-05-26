@@ -61,15 +61,18 @@ namespace Stint
             // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
             // If its wrong the job should not be created.
             var expression = CronExpression.Parse(JobConfig.Schedule);
-            var delayTrigger = new ScheduledChangeTokenProducer(_anchorStore, _logger, (fromWhen) =>
+            var delayTrigger = new ScheduledChangeTokenProducer(_logger, async (c) =>
             {
-               return expression.GetNextOccurrence(fromWhen);
+                return await _anchorStore.GetAnchorAsync(c);
+            }, (fromWhen) =>
+            {
+                return expression.GetNextOccurrence(fromWhen);
             }, token);
+
 
             var tokenProducer = new ChangeTokenProducerBuilder()
                 .Include(delayTrigger)
                 .Build(out var producerLifetime);
-
             while (!token.IsCancellationRequested)
             {
                 await tokenProducer.DelayUntilChangeSignalledAsync();
@@ -78,6 +81,7 @@ namespace Stint
                     _logger.LogWarning("Job cancelled");
                     return;
                 }
+
                 // run now!
                 var jobInfo = new ExecutionInfo(Name, _optionsStore);
 
@@ -99,9 +103,11 @@ namespace Stint
             using (var scope = _serviceScopeFactory.CreateScope())
             {
                 var factory = scope.ServiceProvider.GetRequiredService<Func<string, IJob>>();
+
                 // Do all the work we need to do!
                 IJob job;
                 try
+
                 {
                     job = factory.Invoke(jobTypeName);
                     if (job == null)

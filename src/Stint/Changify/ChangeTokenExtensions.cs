@@ -6,11 +6,16 @@ namespace Stint.Changify
 
     public static class ChangeTokenExtensions
     {
-        public static Task DelayUntilChangeSignalledAsync(this Func<IChangeToken> changeTokenProducer)
+        /// <summary>
+        /// Consumes a single <see cref="IChangeToken"/> from the producer, and asynchronously waits for it to be signalled.
+        /// </summary>
+        /// <param name="changeTokenProducer"></param>
+        /// <returns></returns>
+        public static Task WaitAsync(this Func<IChangeToken> changeTokenProducer)
         {
             if (changeTokenProducer == null)
             {
-                throw new ArgumentNullException(nameof(ChangeTokenExtensions));
+                throw new ArgumentNullException(nameof(changeTokenProducer));
             }
             // consume token, and when signalled complete task completion source..
             var tcs = new TaskCompletionSource<bool>();

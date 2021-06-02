@@ -1,13 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26124.0
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31313.79
 MinimumVisualStudioVersion = 15.0.26124.0
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stint", "Stint\Stint.csproj", "{ADA80539-AE17-4908-806D-39D697AEB06F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Stint", "Stint\Stint.csproj", "{ADA80539-AE17-4908-806D-39D697AEB06F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stint.Cli", "Stint.Cli\Stint.Cli.csproj", "{64C04914-9B3C-49CF-A98C-78139EDBFF02}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Stint.Cli", "Stint.Cli\Stint.Cli.csproj", "{64C04914-9B3C-49CF-A98C-78139EDBFF02}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stint.Tests", "Stint.Tests\Stint.Tests.csproj", "{07DB0D04-B0F3-42F9-8620-75A713F3848E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Stint.Tests", "Stint.Tests\Stint.Tests.csproj", "{07DB0D04-B0F3-42F9-8620-75A713F3848E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,9 +17,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{ADA80539-AE17-4908-806D-39D697AEB06F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -58,5 +55,11 @@ Global
 		{07DB0D04-B0F3-42F9-8620-75A713F3848E}.Release|x64.Build.0 = Release|Any CPU
 		{07DB0D04-B0F3-42F9-8620-75A713F3848E}.Release|x86.ActiveCfg = Release|Any CPU
 		{07DB0D04-B0F3-42F9-8620-75A713F3848E}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B54954F8-B799-41A9-9CE6-36FE46FA7A24}
 	EndGlobalSection
 EndGlobal

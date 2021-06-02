@@ -1,10 +1,12 @@
 namespace Stint.Changify
 {
     using System;
-    using System.Net.Http;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Primitives;
 
+    /// <summary>
+    /// A producer of <see cref="IChangeToken"/>'s that is able to signal each one based on an asynchronous delay. As each token is produced, a delegate is asynchronosuly invoked to obtain the delay information used to signal that token.
+    /// </summary>
     public class DelayChangeTokenProducer : IChangeTokenProducer
     {
         private readonly Func<Task<DelayInfo>> _getNextDelayInfo;

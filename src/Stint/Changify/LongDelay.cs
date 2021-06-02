@@ -4,6 +4,9 @@ namespace Stint.Changify
     using System.Threading;
     using System.Threading.Tasks;
 
+    /// <summary>
+    /// Utility class used to asynchronously delay for potentially long periods of time.
+    /// </summary>
     public static class LongDelay
     {
         // public static async Task For(long delay)

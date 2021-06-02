@@ -61,9 +61,23 @@ namespace Stint
             // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
             // If its wrong the job should not be created.
             var expression = CronExpression.Parse(JobConfig.Schedule);
-            var delayTrigger = new ScheduledChangeTokenProducer(_logger,
-                async (c) => await _anchorStore.GetAnchorAsync(c),
-                (fromWhen) => expression.GetNextOccurrence(fromWhen), token);
+            var delayTrigger = new ScheduledChangeTokenProducer(
+                async () =>
+                {
+                    var previousOccurrence = await _anchorStore.GetAnchorAsync(token);
+                    if (previousOccurrence == null)
+                    {
+                        _logger.LogInformation("Job has not previously run");
+                    }
+
+                    var fromWhenShouldItNextRun =
+                        previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
+
+                    // var occurrence = getNextOccurrence?.Invoke(fromWhenShouldItNextRun);
+                    var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
+                    _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
+                    return nextOccurence;
+                }, token);
 
 
             var tokenProducer = new ChangeTokenProducerBuilder()
@@ -71,7 +85,7 @@ namespace Stint
                 .Build(out var producerLifetime);
             while (!token.IsCancellationRequested)
             {
-                await tokenProducer.DelayUntilChangeSignalledAsync();
+                await tokenProducer.WaitAsync();
                 if (token.IsCancellationRequested)
                 {
                     _logger.LogWarning("Job cancelled");

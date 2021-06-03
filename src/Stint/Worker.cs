@@ -21,8 +21,8 @@ namespace Stint
         private readonly ILogger<Worker> _logger;
         private readonly IOptionsMonitor<SchedulerConfig> _optionsMonitor;
         private readonly IServiceProvider _serviceProvider;
-        private readonly IJobSettingsStore _settingsStore;
-
+        private readonly IJobOptionsStore _settingsStore;
+        private readonly IAnchorStoreFactory _anchorStoreFactory;
         private Task _allRunningJobs;
 
         private CancellationTokenSource _cts;
@@ -32,22 +32,20 @@ namespace Stint
         public Worker(
             ILogger<Worker> logger,
             IOptionsMonitor<SchedulerConfig> optionsMonitor,
-            IHostEnvironment environment,
             IServiceProvider serviceProvider,
-            IJobSettingsStore settingsStore)
+            IJobOptionsStore settingsStore,
+            IAnchorStoreFactory anchorStoreFactory)
         {
             _logger = logger;
             _optionsMonitor = optionsMonitor;
-            Environment = environment;
             _serviceProvider = serviceProvider;
             _settingsStore = settingsStore;
+            _anchorStoreFactory = anchorStoreFactory;
             _changeTokenProducer = new ChangeTokenProducerBuilder()
                 .IncludeOptionsChangeTrigger(_optionsMonitor)
                 .Build(out var producerLifetime);
             _changeTokenProducerLifetime = producerLifetime;
         }
-
-        private IHostEnvironment Environment { get; }
 
         private void StartListeningForJobConfigChanges() =>
             // reload if tokens signalled.
@@ -89,13 +87,17 @@ namespace Stint
             });
 
             // Note: This _taskCompletionSource is signalled when:
-            // 1. The host is cancelled, are there are no running jobs - i.e _allRunningJobs is complete - as shown above.
-            // 2. The host is cancelled, there are running jobs, in which case when all of those _allRunningJobs are complete there is a continuation that that signals the task completion source if the host cancellation token is signalled.
-            // This mains this tasks runs until the host is cancelled, and if there is no ongoing work, exits quickly, otherwise if there are ongoing tasks, exits after they are all complete.
+            // 1. The host is cancelled, and there are no running jobs - i.e _allRunningJobs is complete - as shown above.
+            // 2. The host is cancelled, and there are still running jobs, in which case when all the _allRunningJobs = complete, there is a continuation that signals the task completion source if the host cancellation token has been signalled.
+            // This means this tasks runs until the host is cancelled, and if there is no ongoing work, exits quickly, otherwise if there are ongoing tasks, exits after they are all complete. The running tasks should all be honoring the hosts cancellation token, so should all exit pretty swiftly but i may depend on the job.
             await _taskCompletionSource.Task;
             _logger.LogInformation("Worker exiting at: {time}", DateTimeOffset.Now);
         }
 
+        /// <summary>
+        /// When scheduled job configuration changes, we need to add / update / delete our in memory scheduled jobs to match the new config.
+        /// </summary>
+        /// <param name="stoppingToken"></param>
         private void ReloadJobs(CancellationToken stoppingToken)
         {
             var currentConfig = _optionsMonitor.CurrentValue;
@@ -118,10 +120,9 @@ namespace Stint
             _logger.LogInformation("{x} jobs to update.", jobsToUpdate?.Length ?? 0);
 
 
-            // Note once we have got the new set of tasks we can await it and dispose of the previous await.
+            // Note: once we have got the new set of tasks representing our new scheduled jobs, we can await it and dispose of the previous awaited tasks.
             var jobTasks = new List<Task>();
-
-            // throw new NotImplementedException("populate the new tasks list");
+            var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
             foreach (var key in jobsToAdd)
             {
@@ -129,7 +130,7 @@ namespace Stint
                 if (existed)
                 {
                     // should probably throw an error here as this shouldn't actually happen.
-                    _logger.LogWarning("New job added but it already exists, skipping {name}", key);
+                    _logger.LogWarning("New job detected but it already exists, skipping {name}", key);
                     continue;
                 }
 
@@ -137,18 +138,17 @@ namespace Stint
                 if (!exists)
                 {
                     // should probably throw an error here as this shouldn't actually happen.
-                    _logger.LogWarning("New job added but unable to get config, skipping {name}", key);
+                    _logger.LogWarning("New job detected but unable to get config, skipping {name}", key);
                     continue;
                 }
 
                 //Note: this looks like a resolution root?
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
-                var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), _settingsStore, logger,
-                    _serviceProvider.GetRequiredService<IServiceScopeFactory>());
+                var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory);
                 var started = newJob.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, newJob);
-                _logger.LogInformation("New job started: {name}", key);
+                _logger.LogInformation("New scheduled job added: {name}", key);
             }
 
             // Update any currently running jobs that have changed.
@@ -165,14 +165,13 @@ namespace Stint
                 if (!exists)
                 {
                     // should probably throw an error here as this shouldn't actually happen.
-                    _logger.LogWarning("Job udpated but unable to get config, skipping {name}", key);
+                    _logger.LogWarning("Updated job detected, but unable to get config, skipping {name}", key);
                     continue;
                 }
 
                 //Note: this looks like a resolution root?
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
-                var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), _settingsStore, logger,
-                    _serviceProvider.GetRequiredService<IServiceScopeFactory>());
+                var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory);
                 var started = jobLifetime.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, jobLifetime);
@@ -200,7 +199,7 @@ namespace Stint
                 }
                 else
                 {
-                    _logger.LogInformation("All jobs have finished, waiting for more jobs to be configured.");
+                    _logger.LogInformation("All jobs have finished, host still running, waiting for more jobs to be configured.");
                 }
             });
 
@@ -216,7 +215,7 @@ namespace Stint
             }
         }
 
-        private IAnchorStore GetAnchorStore(string name) => new JobAnchorStore(Environment.ContentRootPath, name);
+        private IAnchorStore GetAnchorStore(string name) => _anchorStoreFactory.GetAnchorStore(name);
 
         public override void Dispose()
         {

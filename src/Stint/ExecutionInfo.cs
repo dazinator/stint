@@ -7,7 +7,7 @@ namespace Stint
         public ExecutionInfo(string name,
             // DateTime? previousOccurrence,
             // DateTime occurrence,
-            IJobSettingsStore optionsStore)
+            IJobOptionsStore optionsStore)
         {
             Name = name;
             // PreviousOccurrence = previousOccurrence;
@@ -18,7 +18,7 @@ namespace Stint
         public string Name { get; }
         // public DateTime? PreviousOccurrence { get; }
         // public DateTime Occurrence { get; }
-        private IJobSettingsStore OptionsStore { get; }
+        private IJobOptionsStore OptionsStore { get; }
 
         public TOptions GetOptions<TOptions>()
             where TOptions : new() =>

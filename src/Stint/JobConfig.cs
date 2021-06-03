@@ -9,13 +9,8 @@ namespace Stint
 
         }
 
-        // ReSharper disable once UnusedAutoPropertyAccessor.Global
         public string Schedule { get; set; }
 
-        // public List<string> InputLists { get; set; }
-        //  public string Name { get; set; }
-
-        // ReSharper disable once UnusedAutoPropertyAccessor.Global
         public string Type { get; set; }
 
         public override bool Equals(object obj) => Equals(obj as JobConfig);

@@ -10,8 +10,6 @@ namespace Stint
         private readonly IConfiguration _config;
         private readonly IServiceCollection _services;
 
-        //   public Dictionary<string, Type> _jobOptionsTypes { get; set; } = new Dictionary<string, Type>();
-
         public JobRegistry(
             IConfiguration config,
             IServiceCollection services,

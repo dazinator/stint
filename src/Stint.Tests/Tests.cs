@@ -52,10 +52,7 @@ namespace Stint.Tests
                     services.AddHostedService<Worker>();
                     services.Configure<SchedulerConfig>(jobsConfigSection);
                     services.AddScheduledJobs(jobsConfigSection,
-                        (r) =>
-                        {
-                            r.Include<TestJob>(nameof(TestJob), sp => new TestJob(onJobExecuted));
-                        });
+                        (r) => r.Include<TestJob>(nameof(TestJob), sp => new TestJob(onJobExecuted)));
                 });
         }
 

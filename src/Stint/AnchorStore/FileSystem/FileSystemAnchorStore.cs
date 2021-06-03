@@ -6,12 +6,12 @@ namespace Stint
     using System.Threading;
     using System.Threading.Tasks;
 
-    public class JobAnchorStore : IAnchorStore
+    public class FileSystemAnchorStore : IAnchorStore
     {
         private readonly string _contentPath;
         private readonly string _name;
 
-        public JobAnchorStore(string contentPath, string name)
+        public FileSystemAnchorStore(string contentPath, string name)
         {
             _contentPath = contentPath;
             _name = name;

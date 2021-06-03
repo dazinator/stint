@@ -1,6 +1,6 @@
 # Jobs
 
-After installing the service, you can make changes to its job configuration, even whilst its running (it will respond to any changes appropriately)
+Scheduled jobs are configured. You can change the configuration whilst the application is running and the changes will be applied in memory.
 
 Edit the `appsettings.json` file:
 
@@ -8,21 +8,58 @@ Edit this section:
 
 ```json
 "JobsService": {
-    "Jobs": [
-      {       
-        "Schedule": "[CRON]"
+    "Jobs": {
+      "TestJob":  {       
+        "Schedule": "[CRON]",
+        "Type" : "MyCoolJob"
       },
-      {       
-        "Schedule": "[CRON]"
+      "AnotherTestJob": {
+       "Schedule": "[CRON]",
+        "Type" : "MyCoolJob"
+      },
+      "DifferentJob": {
+       "Schedule": "[CRON]",
+        "Type" : "MyOtherCoolJob"
       }
-    ]
+    }   
   }
 
 ```
 
-Under the "Jobs" section you can have multiple jobs configured, each has:
+Under the "Jobs" section, each property is the unique name for the scheduled job.
+Each named job then has:
 
-- Schedule - this is a CRON expression that determines when you want this job to run.
+- Schedule: this is a CRON expression that determines when this scheduled job should run.
+- Type: this identifies the type of the job to run. Job's are implemented as classes, so you might have different types of jobs to do different types of things. The job type specified here must align with the job type name registered on startup:
+
+  ```csharp
+   services.AddScheduledJobs(jobsConfigSection,
+                        (r) => r.Include<MyCoolJob>(nameof(MyCoolJob), sp => new MyCoolJob()));
+  ```
+
+  A job class is just a class that implements the `IJob` interface:
+
+  ```csharp
+
+        public class MyCoolJob : IJob
+        {
+           
+            private ILogger _logger;
+
+            public TestJob(ILogger logger)
+            {
+              _logger = logger;
+            }
+
+            public Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token)
+            {
+               _logger.LogDebug("Working..");
+                return Task.CompletedTask;
+            }
+        }
+
+
+  ```
 
 For the CRON expression syntax, see: https://github.com/HangfireIO/Cronos#cron-format
 
@@ -41,6 +78,13 @@ For the CRON expression syntax, see: https://github.com/HangfireIO/Cronos#cron-f
 
 ## How does scheduling work
 
-When a job is successfully executed, a file / anchor is saved alongside the output list. This anchor file contains the date and time that the job last executed.
+After a scheduled job has been executed, a file / anchor is saved.
+The anchor contains the date and time that the job last executed.
+If the job is scheduled to run every sunday, and you don't turn your machine on that sunday,
+when you turn it on monday and the job runner starts, the job is loaded into memory with the configured schedule.as it's overdue. It will save a new anchor file. 
+This ensures that overdue jobs are run in the case the application went down for a time etc.
 
-If the job is scheduled to run every sunday, and you don't turn your machine on that sunday, when you run your machine on the following monday, and this service starts, the job is loaded. The job checks for the anchor file and can see that it last ran the sunday before. It sees its meant to run every sunday, but the time its meant to run is in the past (yesterday). In this scenario, it will run the job immediately to "catch" up, and then it will save a new anchor file. This ensures that overdue jobs are run and your lists are kept up to date.
+### What about retries
+
+The scheduler does not handle retries. If you need to retry, you should add that logic within the job. 
+Once the job has completed - even if it throws an exception, the scheduler will drop a new anchor and not try to execute it again until the next appointed time.

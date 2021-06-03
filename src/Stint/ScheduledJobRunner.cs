@@ -14,17 +14,16 @@ namespace Stint
     {
         private readonly IAnchorStore _anchorStore;
         private readonly ILogger<ScheduledJobRunner> _logger;
-        private readonly IJobSettingsStore _optionsStore;
+        private readonly IJobOptionsStore _optionsStore;
         private readonly IServiceScopeFactory _serviceScopeFactory;
 
         public ScheduledJobRunner(
                 string name,
                 JobConfig jobConfig,
                 IAnchorStore anchorStore,
-                IJobSettingsStore optionsStore,
+                IJobOptionsStore optionsStore,
                 ILogger<ScheduledJobRunner> logger,
                 IServiceScopeFactory serviceScopeFactory)
-        // Func<IChangeToken> changeTokenProducer)
         {
             Name = name;
             JobConfig = jobConfig;
@@ -32,7 +31,6 @@ namespace Stint
             _optionsStore = optionsStore;
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
-            // _changeTokenProducer = changeTokenProducer;
         }
 
         public CancellationTokenSource CancellationTokenSource { get; set; }
@@ -150,6 +148,7 @@ namespace Stint
                     _logger.LogError(ex, "Job error.");
                     // don't allow job execution exceptions to bubble any further.
                     // return success and log error.
+                    // jobs must currently handle their own retry logic..
                 }
             }
         }

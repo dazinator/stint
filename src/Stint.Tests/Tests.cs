@@ -32,16 +32,20 @@ namespace Stint.Tests
         public async Task Only_One_Instance_Of_Scheduled_Job_Executed_Concurrently()
         {
             int hostCount = 3;
-            var jobRanEvent = new CountdownEvent(hostCount);
+            var jobRanEvent = new ManualResetEvent(false);
             var hosts = new List<IHost>();
             var lockProvider = new SingletonLockProvider();
+            bool failed = false;
 
             for (int i = 0; i < hostCount; i++)
             {
                 var host = CreateHostBuilder(async () =>
                 {
-                    await Task.Delay(1000);
-                    jobRanEvent.Signal();
+                    if (!jobRanEvent.Set())
+                    {
+                        failed = true;
+                    }
+                    await Task.Delay(2000);
                 }, lockProvider).Build();
                 hosts.Add(host);
             }
@@ -49,8 +53,11 @@ namespace Stint.Tests
             var tasks = hosts.Select(a => a.StartAsync());
             await Task.WhenAll(tasks);
 
-            await Task.Delay(5000);
-            Assert.Equal(2, jobRanEvent.CurrentCount);
+            var jobRan = jobRanEvent.WaitOne(6000);
+            Assert.True(jobRan);
+
+            //  await Task.Delay(5000); // give more time for more jobs to run.
+            Assert.False(failed);
         }
 
         public static IHostBuilder CreateHostBuilder(Func<Task> onJobExecuted, ILockProvider lockProvider)

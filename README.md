@@ -40,11 +40,10 @@ Implement a job class. This is just a class that implements the `IJob` interface
 Register your different job classes, with their own job type name which will be used to refer to them from configuration:
 
   ```csharp
-   services.AddScheduledJobs(jobsConfigSection,
-                        (r) => r.Include<MyCoolJob>(nameof(MyCoolJob), sp => new MyCoolJob()));
-  ```
 
-  
+   services.AddScheduledJobs(config.GetSection("JobsService"),
+                        (r) => r.Include<MyCoolJob>(nameof(MyCoolJob), sp => new MyCoolJob()));
+  ```  
 
 Note: You can use DI as usual for injecting dependencies into job classes.
 
@@ -61,11 +60,11 @@ Edit the `appsettings.json` file:
       },
       "AnotherTestJob": {
        "Schedule": "[CRON]",
-        "Type" : "MyCoolJob"
+       "Type" : "MyCoolJob"
       },
       "DifferentJob": {
        "Schedule": "[CRON]",
-        "Type" : "MyOtherCoolJob"
+       "Type" : "MyOtherCoolJob"
       }
     }   
   }
@@ -98,18 +97,16 @@ For the CRON expression syntax, see: https://github.com/HangfireIO/Cronos#cron-f
 
 ## How does scheduling work
 
-After a scheduled job has been executed, a file / anchor is saved using the `IAnchorStore` implementation.
-By default this saves an anchor file to your applications content root directory.
+After a scheduled job has been executed, a file / anchor is saved using the `IAnchorStore` implementation, which by default saves an anchor file to your applications content root directory.
 The anchor contains the date and time that the job last executed.
 The scheduler compares the `schedule` you've specified, to the anchor file for the job, and works out when the job needs to be executed next. 
 It then asynchronously delays until the appointed time.
-If the job is scheduled to run every sunday, and you don't turn your machine on for a given day, when you turn it on next, and the job runner starts, 
-the job is loaded into memory with the configured schedule. The scheduler sees that it's overdue based on the last anchor point. It will the execute the job immediately, and save a new anchor file. 
+If the job is scheduled to run every sunday, and you don't turn your machine on for a given day, when you turn it on next, and the job runner starts, it will detect that the job is overdue (based on the last anchor point and the current schedule) and will execute the job immediately, and save a new anchor file. 
 This ensures that overdue jobs are run in the case the application went down for a time etc.
 
 ### What about retries
 
-The scheduler does not handle retries. If you need to retry, you should add that logic within the job. 
+The scheduler does not handle retries. If you need to retry, you should add that logic within your job itself.
 Once the job has completed - even if it throws an exception, the scheduler will drop a new anchor and not try to execute it again until the next appointed time.
 
 ### What about scaling?
@@ -139,4 +136,4 @@ services.AddScheduledJobs(jobsConfigSection,
 
 ```
 
-The lock provider that is registered by default, is an empty lock provider, which means there is no locking, and jobs will be allowed to execute concurrently.
+The lock provider that is registered by default, is an empty lock provider, which means there is no locking, and jobs will be allowed to execute simultaneosly.

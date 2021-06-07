@@ -17,11 +17,6 @@ namespace Stint
         public Task<IDisposable> TryAcquireAsync(string name)
         {
             return _emptyLock;
-        }
-
-        private void ReleaseLock()
-        {
-            // no op
-        }
+        }       
     }
 }

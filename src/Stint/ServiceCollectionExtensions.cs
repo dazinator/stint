@@ -8,23 +8,20 @@ namespace Stint
 
     public static class ServiceCollectionExtensions
     {
-        public static StintServicesBuilder AddScheduledJobs(this IServiceCollection services,
+        public static StintServicesBuilder AddScheduledJobs(
+            this IServiceCollection services,
             IConfiguration configuration,
             Action<JobRegistry> registerJobs)
         {
             services.AddHostedService<Worker>();
+            services.Configure<SchedulerConfig>(configuration);
             // register job types
-            services.AddNamed<IJob>(n =>
-            {
-                registerJobs?.Invoke(new JobRegistry(configuration, services, n));
-            });
+            services.AddNamed<IJob>(n => registerJobs?.Invoke(new JobRegistry(n)));
 
-            services.AddSingleton<IJobOptionsStore>(new ConfigurationJobOptionsStore(configuration));
-            services.AddSingleton<IAnchorStoreFactory, FileSystemAnchorStoreFactory>((sp) =>
-            {
-                var env = sp.GetRequiredService<IHostEnvironment>();
-                return new FileSystemAnchorStoreFactory(env.ContentRootPath);
-            });
+            var builder = new StintServicesBuilder(services);
+            builder.AddConfigurationJobOptionsStore(configuration)
+                   .AddFileSystemAnchorStore()
+                   .AddLockProvider<SingletonLockProvider>();
 
             return new StintServicesBuilder(services);
         }
@@ -41,15 +38,43 @@ namespace Stint
         /// </summary>
         /// <param name="basePath"></param>
         /// <returns></returns>
-        public StintServicesBuilder UseFileSystemAnchorStore(string basePath)
+        public StintServicesBuilder AddFileSystemAnchorStore(string basePath)
         {
             Services.AddSingleton<IAnchorStoreFactory, FileSystemAnchorStoreFactory>((sp) => new FileSystemAnchorStoreFactory(basePath));
             return this;
         }
 
-        public StintServicesBuilder UseConfigurationJobOptionsStore(IConfiguration config, string configSectionFormatString = null)
+        /// <summary>
+        /// Saves anchors to the file system at the <see cref="IHostEnvironment.ContentRootPath"/> location.
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <returns></returns>
+        public StintServicesBuilder AddFileSystemAnchorStore()
+        {
+            Services.AddSingleton<IAnchorStoreFactory, FileSystemAnchorStoreFactory>((sp) =>
+            {
+                var env = sp.GetRequiredService<IHostEnvironment>();
+                return new FileSystemAnchorStoreFactory(env.ContentRootPath);
+            });
+            return this;
+        }
+
+        public StintServicesBuilder AddConfigurationJobOptionsStore(IConfiguration config, string configSectionFormatString = null)
         {
             Services.AddSingleton<IJobOptionsStore>(new ConfigurationJobOptionsStore(config, configSectionFormatString));
+            return this;
+        }
+
+        public StintServicesBuilder AddLockProvider<TLockProvider>()
+            where TLockProvider : class, ILockProvider
+        {
+            Services.AddSingleton<ILockProvider, TLockProvider>();
+            return this;
+        }
+
+        public StintServicesBuilder AddLockProviderInstance(ILockProvider instance)
+        {
+            Services.AddSingleton<ILockProvider>(instance);
             return this;
         }
     }

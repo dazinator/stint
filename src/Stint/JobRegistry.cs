@@ -7,16 +7,16 @@ namespace Stint
 
     public class JobRegistry
     {
-        private readonly IConfiguration _config;
-        private readonly IServiceCollection _services;
+        //  private readonly IConfiguration _config;
+        // private readonly IServiceCollection _services;
 
         public JobRegistry(
-            IConfiguration config,
-            IServiceCollection services,
+            //  IConfiguration config,
+            //  IServiceCollection services,
             NamedServiceRegistry<IJob> namedServiceRegistry)
         {
-            _config = config;
-            _services = services;
+            //  _config = config;
+            //  _services = services;
             NamedServiceRegistry = namedServiceRegistry;
         }
 

@@ -23,6 +23,7 @@ namespace Stint
         private readonly IServiceProvider _serviceProvider;
         private readonly IJobOptionsStore _settingsStore;
         private readonly IAnchorStoreFactory _anchorStoreFactory;
+        private readonly ILockProvider _lockProvider;
         private Task _allRunningJobs;
 
         private CancellationTokenSource _cts;
@@ -34,13 +35,15 @@ namespace Stint
             IOptionsMonitor<SchedulerConfig> optionsMonitor,
             IServiceProvider serviceProvider,
             IJobOptionsStore settingsStore,
-            IAnchorStoreFactory anchorStoreFactory)
+            IAnchorStoreFactory anchorStoreFactory,
+            ILockProvider lockProvider)
         {
             _logger = logger;
             _optionsMonitor = optionsMonitor;
             _serviceProvider = serviceProvider;
             _settingsStore = settingsStore;
             _anchorStoreFactory = anchorStoreFactory;
+            _lockProvider = lockProvider;
             _changeTokenProducer = new ChangeTokenProducerBuilder()
                 .IncludeOptionsChangeTrigger(_optionsMonitor)
                 .Build(out var producerLifetime);
@@ -144,7 +147,7 @@ namespace Stint
 
                 //Note: this looks like a resolution root?
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
-                var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory);
+                var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory, _lockProvider);
                 var started = newJob.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, newJob);
@@ -171,7 +174,7 @@ namespace Stint
 
                 //Note: this looks like a resolution root?
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
-                var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory);
+                var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory, _lockProvider);
                 var started = jobLifetime.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, jobLifetime);

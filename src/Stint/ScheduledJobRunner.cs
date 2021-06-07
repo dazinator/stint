@@ -16,6 +16,7 @@ namespace Stint
         private readonly ILogger<ScheduledJobRunner> _logger;
         private readonly IJobOptionsStore _optionsStore;
         private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ILockProvider _lockProvider;
 
         public ScheduledJobRunner(
                 string name,
@@ -23,7 +24,8 @@ namespace Stint
                 IAnchorStore anchorStore,
                 IJobOptionsStore optionsStore,
                 ILogger<ScheduledJobRunner> logger,
-                IServiceScopeFactory serviceScopeFactory)
+                IServiceScopeFactory serviceScopeFactory,
+                ILockProvider lockProvider)
         {
             Name = name;
             JobConfig = jobConfig;
@@ -31,6 +33,7 @@ namespace Stint
             _optionsStore = optionsStore;
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
+            _lockProvider = lockProvider;
         }
 
         public CancellationTokenSource CancellationTokenSource { get; set; }
@@ -59,10 +62,13 @@ namespace Stint
             // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
             // If its wrong the job should not be created.
             var expression = CronExpression.Parse(JobConfig.Schedule);
+            DateTime? lastReturnedAnchor = null;
+
             var delayTrigger = new ScheduledChangeTokenProducer(
                 async () =>
                 {
                     var previousOccurrence = await _anchorStore.GetAnchorAsync(token);
+                    lastReturnedAnchor = previousOccurrence;
                     if (previousOccurrence == null)
                     {
                         _logger.LogInformation("Job has not previously run");
@@ -80,14 +86,30 @@ namespace Stint
 
             var tokenProducer = new ChangeTokenProducerBuilder()
                 .Include(delayTrigger)
+                .Build()
+                .FilterOnResourceAcquired(async () => await _lockProvider.TryAcquireAsync(Name),
+                    () =>
+                    {
+                        _logger.LogInformation("Job {JobName} was not triggered as lock could not be obtained, another instance may already be running.", Name);
+                    })
                 .Build(out var producerLifetime);
+
             while (!token.IsCancellationRequested)
             {
-                await tokenProducer.WaitAsync();
+                await tokenProducer.WaitOneAsync(); // wait for a change token to be signalled.
                 if (token.IsCancellationRequested)
                 {
-                    _logger.LogWarning("Job cancelled");
-                    return;
+                    continue;
+                }
+
+                // double check if the anchor has changed,
+                // if another process just also ran this job, it will have dropped a new anchor point.
+                // So we detect that, and only want to continue to execute the job if the anchor hasn't been changed.               
+                var latestAnchor = await _anchorStore.GetAnchorAsync(token);
+                if (latestAnchor != lastReturnedAnchor)
+                {
+                    _logger.LogDebug("Job anchor has changed, perhaps job executed by another process.");
+                    continue;
                 }
 
                 // run now!
@@ -96,12 +118,9 @@ namespace Stint
                 // TODO: Add options for retrying when failure.
                 await ExecuteScheduledJob(JobConfig.Type, jobInfo, token);
                 var newAnchor = await _anchorStore.DropAnchorAsync(token);
-                if (token.IsCancellationRequested)
-                {
-                    _logger.LogWarning("Job cancelled");
-                    return;
-                }
             }
+
+            _logger.LogInformation("Job cancelled");
         }
 
 

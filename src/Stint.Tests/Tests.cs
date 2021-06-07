@@ -2,6 +2,7 @@ namespace Stint.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Configuration;
@@ -17,17 +18,42 @@ namespace Stint.Tests
 
             var jobRanEvent = new AutoResetEvent(false);
 
-            var hostBuilderTask = CreateHostBuilder(() =>
+            var hostBuilderTask = CreateHostBuilder(async () =>
                 {
                     jobRanEvent.Set();
-                }
+                }, new SingletonLockProvider()
             ).Build().RunAsync();
 
             var signalled = jobRanEvent.WaitOne(60000);
             Assert.True(signalled);
         }
 
-        public static IHostBuilder CreateHostBuilder(Action onJobExecuted)
+        [Fact]
+        public async Task Only_One_Instance_Of_Scheduled_Job_Executed_Concurrently()
+        {
+            int hostCount = 3;
+            var jobRanEvent = new CountdownEvent(hostCount);
+            var hosts = new List<IHost>();
+            var lockProvider = new SingletonLockProvider();
+
+            for (int i = 0; i < hostCount; i++)
+            {
+                var host = CreateHostBuilder(async () =>
+                {
+                    await Task.Delay(1000);
+                    jobRanEvent.Signal();
+                }, lockProvider).Build();
+                hosts.Add(host);
+            }
+
+            var tasks = hosts.Select(a => a.StartAsync());
+            await Task.WhenAll(tasks);
+
+            await Task.Delay(4000);
+            Assert.Equal(2, jobRanEvent.CurrentCount);
+        }
+
+        public static IHostBuilder CreateHostBuilder(Func<Task> onJobExecuted, ILockProvider lockProvider)
         {
 
             var inMemoryConfig = new Dictionary<string, string>();
@@ -48,28 +74,21 @@ namespace Stint.Tests
 
             return Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
-                {
-                    services.AddHostedService<Worker>();
-                    services.Configure<SchedulerConfig>(jobsConfigSection);
                     services.AddScheduledJobs(jobsConfigSection,
-                        (r) => r.Include<TestJob>(nameof(TestJob), sp => new TestJob(onJobExecuted)));
-                });
+                        (r) => r.Include<TestJob>(nameof(TestJob), sp => new TestJob(onJobExecuted)))
+                            .AddLockProviderInstance(lockProvider));
         }
 
         public class TestJob : IJob
         {
-            private readonly Action _onJobExecuted;
+            private readonly Func<Task> _onJobExecuted;
 
-            public TestJob(Action onJobExecuted)
+            public TestJob(Func<Task> onJobExecuted)
             {
                 _onJobExecuted = onJobExecuted;
             }
 
-            public Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token)
-            {
-                _onJobExecuted();
-                return Task.CompletedTask;
-            }
+            public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token) => await _onJobExecuted();
         }
     }
 }

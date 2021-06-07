@@ -49,7 +49,7 @@ namespace Stint.Tests
             var tasks = hosts.Select(a => a.StartAsync());
             await Task.WhenAll(tasks);
 
-            await Task.Delay(4000);
+            await Task.Delay(5000);
             Assert.Equal(2, jobRanEvent.CurrentCount);
         }
 

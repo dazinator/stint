@@ -21,7 +21,7 @@ namespace Stint
             var builder = new StintServicesBuilder(services);
             builder.AddConfigurationJobOptionsStore(configuration)
                    .AddFileSystemAnchorStore()
-                   .AddLockProvider<SingletonLockProvider>();
+                   .AddLockProvider<EmptyLockProvider>();
 
             return new StintServicesBuilder(services);
         }

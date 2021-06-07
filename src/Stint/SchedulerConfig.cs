@@ -4,6 +4,6 @@ namespace Stint
 
     public class SchedulerConfig
     {
-        public Dictionary<string, JobConfig> Jobs { get; set; }
+        public Dictionary<string, ScheduledJobConfig> Jobs { get; set; }
     }
 }

@@ -2,9 +2,9 @@ namespace Stint
 {
     using System;
 
-    public class JobConfig
+    public class ScheduledJobConfig
     {
-        public JobConfig()
+        public ScheduledJobConfig()
         {
 
         }
@@ -13,9 +13,9 @@ namespace Stint
 
         public string Type { get; set; }
 
-        public override bool Equals(object obj) => Equals(obj as JobConfig);
+        public override bool Equals(object obj) => Equals(obj as ScheduledJobConfig);
 
-        public bool Equals(JobConfig obj)
+        public bool Equals(ScheduledJobConfig obj)
         {
             var equal = obj != null && obj.Schedule == Schedule && obj.Type == Type;
             return equal;

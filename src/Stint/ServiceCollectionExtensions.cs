@@ -8,23 +8,25 @@ namespace Stint
 
     public static class ServiceCollectionExtensions
     {
-        public static StintServicesBuilder AddScheduledJobs(
+        public static IServiceCollection AddScheduledJobs(
             this IServiceCollection services,
             IConfiguration configuration,
-            Action<JobRegistry> registerJobs)
+            Action<StintServicesBuilder> configure)
         {
             services.AddHostedService<Worker>();
             services.Configure<SchedulerConfig>(configuration);
             // register job types
-            services.AddNamed<IJob>(n => registerJobs?.Invoke(new JobRegistry(n)));
+            //  services.AddNamed<IJob>(n => registerJobs?.Invoke(new JobRegistry(n)));         
 
             var builder = new StintServicesBuilder(services);
             builder.AddConfigurationJobOptionsStore(configuration)
                    .AddFileSystemAnchorStore()
                    .AddLockProvider<EmptyLockProvider>();
 
-            return new StintServicesBuilder(services);
+            configure?.Invoke(builder);
+            return services;
         }
+
     }
 
     public class StintServicesBuilder
@@ -75,6 +77,13 @@ namespace Stint
         public StintServicesBuilder AddLockProviderInstance(ILockProvider instance)
         {
             Services.AddSingleton<ILockProvider>(instance);
+            return this;
+        }
+
+        public StintServicesBuilder RegisterJobTypes(Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes = null)
+        {
+            var builder = new NamedServiceRegistrationsBuilder<IJob>(Services);
+            registerJobTypes?.Invoke(builder);
             return this;
         }
     }

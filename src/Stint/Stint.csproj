@@ -8,9 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Changify.Options" Version="0.1.0-alpha.30" />
+    <PackageReference Include="Changify.Options" Version="0.1.0-alpha.31" />
     <PackageReference Include="Cronos" Version="0.7.0" />
-    <PackageReference Include="Dazinator.Extensions.DependencyInjection.NamedServices" Version="1.1.0-alpha.74" />
+    <PackageReference Include="Dazinator.Extensions.DependencyInjection.NamedServices" Version="1.1.0-alpha.81" /> 
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.1.12" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.12" />
     <PackageReference Include="MIcrosoft.Extensions.Logging.Console" Version="3.1.12" />

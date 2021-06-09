@@ -80,9 +80,14 @@ namespace Stint.Tests
 
             return Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
-                    services.AddScheduledJobs(jobsConfigSection,
-                        (r) => r.Include<TestJob>(nameof(TestJob), sp => new TestJob(onJobExecuted)))
-                            .AddLockProviderInstance(lockProvider));
+                {
+                    services.AddScheduledJobs(jobsConfigSection, (options) =>
+                     {
+                         options.AddLockProviderInstance(lockProvider)
+                                .RegisterJobTypes(a => a.AddTransient(nameof(TestJob), (sp) => new TestJob(onJobExecuted)));
+                     });
+
+                }); //.AddLockProviderInstance(lockProvider));
         }
 
         public class TestJob : IJob
@@ -94,7 +99,10 @@ namespace Stint.Tests
                 _onJobExecuted = onJobExecuted;
             }
 
-            public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token) => await _onJobExecuted();
+            public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token)
+            {
+                await _onJobExecuted();
+            }
         }
     }
 }

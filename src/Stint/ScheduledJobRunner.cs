@@ -57,7 +57,7 @@ namespace Stint
         {
             // DateTime? previousOccurrence = null;         
 
-            while (!token.IsCancellationRequested)
+            while (!token.IsCancellationRequested && !Disabled)
             {
                 await _changeTokenProducer.WaitOneAsync(); // wait for a change token to be signalled.
                 if (token.IsCancellationRequested)
@@ -76,6 +76,8 @@ namespace Stint
             _logger.LogInformation("Job cancelled");
         }
 
+
+        public bool Disabled { get; set; } = false;
 
         protected virtual async Task ExecuteScheduledJob(string jobTypeName, ExecutionInfo runInfo, CancellationToken token)
         {
@@ -98,14 +100,19 @@ namespace Stint
                 }
                 catch (KeyNotFoundException)
                 {
+                    // if we can't actviate the job, disable it.
+                    Disabled = true;
+                    // ExceptionCount = ExceptionCount + 1;
                     // unable to find job type specified..
-                    _logger.LogWarning("No job type named {name} is registered.", jobTypeName);
+                    _logger.LogWarning("No job type named {name} is registered. This job will be disabled.", jobTypeName);
                     return;
                     // throw;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Unable to create job type named {name} - it might be missing dependencies.",
+                    // ExceptionCount = ExceptionCount + 1;
+                    Disabled = true;
+                    _logger.LogError(ex, "Unable to create job type named {name} - it might be missing dependencies. This job will be disabled.",
                         jobTypeName);
                     return;
                 }

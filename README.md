@@ -37,13 +37,25 @@ Implement a job class. This is just a class that implements the `IJob` interface
 
   ```
 
-Register your different job classes, with their own job type name which will be used to refer to them from configuration:
+Register your different job types first, with their own job type name which will be used to refer to them from configuration:
 
   ```csharp
 
-   services.AddScheduledJobs(config.GetSection("JobsService"),
-                        (r) => r.Include<MyCoolJob>(nameof(MyCoolJob), sp => new MyCoolJob()));
-  ```  
+  services.AddTransientScheduledJobType<MyCoolJob>(nameof(TestJob));
+  services.AddTransientScheduledJobType<MyOtherCoolJob>(nameof(MyOtherCoolJob));
+
+  ```
+
+  Next add the scheduler that will run as a worker to run the jobs. This must be added after the above job type registrations:
+
+  ```csharp
+
+   services.AddScheduledJobs(config.GetSection("JobsService"), (options) =>
+                    {
+                        // Other options for scheduler here..
+                        // options.AddLockProviderInstance(lockProvider);
+                    });
+  ```
 
 Note: You can use DI as usual for injecting dependencies into job classes.
 

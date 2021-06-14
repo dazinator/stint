@@ -68,6 +68,9 @@ namespace Stint
                 // TODO: Add options for retrying when failure.
                 await ExecuteScheduledJob(Config.Type, jobInfo, token);
                 var newAnchor = await _anchorStore.DropAnchorAsync(token);
+                // wait atelast one second before running again.
+                await Task.Delay(1000);
+
             }
 
             _logger.LogInformation("Job cancelled");

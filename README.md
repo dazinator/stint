@@ -7,9 +7,9 @@ Stint allows your existing dotnet application to run jobs.
 ## Features
 
 - Scheduled jobs
-  - Responsive to job config / schedule changing at runtime - jobs will be gracefully re-scheduled.
-  - Jobs are run with cancellation token so can be cancelled gracefully.
-  - Supports locking, so you can implement your own `ILockProvider` to prevent multiple instances of jobs running concurrently when scaling to multiple nodes for example.
+  - Are configured using the `IOptions` pattern so can be configured from a wide variety of sources, and can be responsive to config changes at runtime.
+  - Jobs are run with cancellation token so can be cancelled gracefully. They will be signalled to cancel if for example, the jobs scheduled is changed etc and the job needs to be reloaded.
+  - Supports locking, so you can implement your own `ILockProvider` to prevent multiple instances of a job from being signalled concurrently when scaling to multiple nodes for example.
     
 # Getting Started
 
@@ -37,31 +37,36 @@ Implement a job class. This is just a class that implements the `IJob` interface
 
   ```
 
-Register your different job types first, with their own job type name which will be used to refer to them from configuration:
+ Add `AddScheduledJobs` services, and register your available job classes.
+ 
+ ```csharp
 
-  ```csharp
-
-  services.AddTransientScheduledJobType<MyCoolJob>(nameof(TestJob));
-  services.AddTransientScheduledJobType<MyOtherCoolJob>(nameof(MyOtherCoolJob));
-
+     services.AddScheduledJobs((options) => options.RegisterJobTypes((jobTypes) => 
+            jobTypes.AddTransient(nameof(MyCoolJob), (sp) => new MyCoolJob())
+                    .AddTransient<MyOtherCoolJob>(nameof(MyOtherCoolJob))))
+  
   ```
 
-  Next add the scheduler that will run as a worker to run the jobs. This must be added after the above job type registrations:
+  Each Job class is registered with a job type name, which is used to refer to it when configuring jobs of that type.
 
-  ```csharp
-
-   services.AddScheduledJobs(config.GetSection("JobsService"), (options) =>
-                    {
-                        // Other options for scheduler here..
-                        // options.AddLockProviderInstance(lockProvider);
-                    });
+  Next configure your job schedules. This uses the standard `IOptions` pattern, so you can bind the config from `Json` config, pre or post configure hooks, or any other sources that support this pattern.
+    
   ```
+   services.Configure<SchedulerConfig>((scheduler) =>
+                        scheduler.Jobs.Add("TestJob", new ScheduledJobConfig()
+                        {
+                            Schedule = "* * * * *", // every minute.
+                            Type = nameof(MyCoolJob) // must match a job type name you have registered a job class with.
+                        }));
+
+  ```
+  
 
 Note: You can use DI as usual for injecting dependencies into job classes.
 
-Next we will configure the scheduler to run these jobs.
+## Using config
 
-Edit the `appsettings.json` file:
+If you want to bind the scheduler jobs to a json config file, you'll json will need to look like this:
 
 ```json
 "JobsService": {
@@ -87,7 +92,7 @@ Edit the `appsettings.json` file:
 - Each job has a "Type" which is a name that maps to a specific registered job class in the code - i.e "MyCoolJob", "MyOtherCoolJob" as shown above.
   This tells the job runner which job class to execute for this job.
 - Each job has a "Schedule" - this is a CRON expression that determines when this scheduled job should run.
-- You can change the configuration whilst the application is running and the changes will be applied in memory.
+- You can change the configuration whilst the application is running and the scheduler will reload / reconfiugre any necessary jobs in memory as necessary to reflect latest configuration.
 
 ## Schedule Syntax (cron)
 
@@ -142,9 +147,11 @@ Then register your lock provider:
 
 ```csharp
 
-services.AddScheduledJobs(jobsConfigSection,
-                        (r) => r.Include<MyCoolJob>(nameof(MyCoolJob), sp => new MyCoolJob()))
-        .AddLockProvider<MyFileLockProvider>();
+ services.AddScheduledJobs((options) => options.RegisterJobTypes((jobTypes) => 
+            jobTypes.AddTransient(nameof(MyCoolJob), (sp) => new MyCoolJob())
+                    .AddTransient<MyOtherCoolJob>(nameof(MyOtherCoolJob)))
+            options.AddLockProvider<MyFileLockProvider>());        
+
 
 ```
 

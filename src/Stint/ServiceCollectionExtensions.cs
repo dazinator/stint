@@ -2,7 +2,6 @@ namespace Stint
 {
     using System;
     using Dazinator.Extensions.DependencyInjection;
-    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
 
@@ -10,17 +9,11 @@ namespace Stint
     {
         public static IServiceCollection AddScheduledJobs(
             this IServiceCollection services,
-            IConfiguration configuration,
             Action<StintServicesBuilder> configure)
         {
             services.AddHostedService<Worker>();
-            services.Configure<SchedulerConfig>(configuration);
-            // register job types
-            //  services.AddNamed<IJob>(n => registerJobs?.Invoke(new JobRegistry(n)));         
-
             var builder = new StintServicesBuilder(services);
-            builder.AddConfigurationJobOptionsStore(configuration)
-                   .AddFileSystemAnchorStore()
+            builder.AddFileSystemAnchorStore()
                    .AddLockProvider<EmptyLockProvider>();
 
             configure?.Invoke(builder);
@@ -58,12 +51,6 @@ namespace Stint
                 var env = sp.GetRequiredService<IHostEnvironment>();
                 return new FileSystemAnchorStoreFactory(env.ContentRootPath);
             });
-            return this;
-        }
-
-        public StintServicesBuilder AddConfigurationJobOptionsStore(IConfiguration config, string configSectionFormatString = null)
-        {
-            Services.AddSingleton<IJobOptionsStore>(new ConfigurationJobOptionsStore(config, configSectionFormatString));
             return this;
         }
 

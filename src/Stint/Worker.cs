@@ -21,7 +21,6 @@ namespace Stint
         private readonly ILogger<Worker> _logger;
         private readonly IOptionsMonitor<SchedulerConfig> _optionsMonitor;
         private readonly IServiceProvider _serviceProvider;
-        private readonly IJobOptionsStore _settingsStore;
         private readonly IAnchorStoreFactory _anchorStoreFactory;
         private readonly ILockProvider _lockProvider;
         private Task _allRunningJobs;
@@ -34,14 +33,12 @@ namespace Stint
             ILogger<Worker> logger,
             IOptionsMonitor<SchedulerConfig> optionsMonitor,
             IServiceProvider serviceProvider,
-            IJobOptionsStore settingsStore,
             IAnchorStoreFactory anchorStoreFactory,
             ILockProvider lockProvider)
         {
             _logger = logger;
             _optionsMonitor = optionsMonitor;
             _serviceProvider = serviceProvider;
-            _settingsStore = settingsStore;
             _anchorStoreFactory = anchorStoreFactory;
             _lockProvider = lockProvider;
             _changeTokenProducer = new ChangeTokenProducerBuilder()
@@ -149,7 +146,7 @@ namespace Stint
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
                 var anchorStore = GetAnchorStore(key);
                 var changeTokenProducer = GetChangeTokenProducer(key, jobConfig, anchorStore, stoppingToken);
-                var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory, changeTokenProducer);
+                var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), logger, scopeFactory, changeTokenProducer);
                 var started = newJob.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, newJob);
@@ -178,7 +175,7 @@ namespace Stint
                 var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
                 var anchorStore = GetAnchorStore(key);
                 var changeTokenProducer = GetChangeTokenProducer(key, newConfig, anchorStore, stoppingToken);
-                var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), _settingsStore, logger, scopeFactory, changeTokenProducer);
+                var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), logger, scopeFactory, changeTokenProducer);
                 var started = jobLifetime.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, jobLifetime);
@@ -232,7 +229,9 @@ namespace Stint
         /// <param name="anchorStore"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public IChangeTokenProducer GetChangeTokenProducer(string jobName, ScheduledJobConfig jobConfig, IAnchorStore anchorStore, CancellationToken cancellationToken)
+        public IChangeTokenProducer GetChangeTokenProducer(string jobName, ScheduledJobConfig jobConfig,
+            IAnchorStore anchorStore,
+            CancellationToken cancellationToken)
         {
             // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
             // If its wrong the job should not be created.
@@ -256,7 +255,14 @@ namespace Stint
                     var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
                     _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
                     return nextOccurence;
-                }, cancellationToken)
+                }, cancellationToken, () =>
+                {
+                    _logger.LogWarning("Mo more occurrences for job.");
+
+                }, (delayMs) =>
+                {
+                    _logger.LogInformation("Will delay for {delayMs} ms.");
+                })
                 .Build()
                 .AndResourceAcquired(async () => await _lockProvider.TryAcquireAsync(jobName), // omit signal if lock cannot be acquired.
                     () => _logger.LogInformation("Job {JobName} was not triggered as lock could not be obtained, another instance may already be running.", jobName))
@@ -264,8 +270,18 @@ namespace Stint
                 .AndTrueAsync(async () => // omit signal if this delegate check does not return true.
                 {
                     var latestAnchor = await anchorStore.GetAnchorAsync(cancellationToken);
-                    return latestAnchor == lastReturnedAnchor;
-                }, () => _logger.LogDebug("Job anchor has changed, perhaps job executed by another process."))
+                    if (latestAnchor == lastReturnedAnchor)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }, () =>
+                {
+                    _logger.LogInformation("Job anchor has changed, perhaps job executed by another process.");
+                })
                 .Build();
 
             return tokenProducer;

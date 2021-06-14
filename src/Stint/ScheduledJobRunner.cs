@@ -12,7 +12,6 @@ namespace Stint
     {
         private readonly IAnchorStore _anchorStore;
         private readonly ILogger<ScheduledJobRunner> _logger;
-        private readonly IJobOptionsStore _optionsStore;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
 
@@ -20,7 +19,6 @@ namespace Stint
                 string name,
                 ScheduledJobConfig config,
                 IAnchorStore anchorStore,
-                IJobOptionsStore optionsStore,
                 ILogger<ScheduledJobRunner> logger,
                 IServiceScopeFactory serviceScopeFactory,
                 IChangeTokenProducer changeTokenProducer
@@ -29,7 +27,6 @@ namespace Stint
             Name = name;
             Config = config;
             _anchorStore = anchorStore;
-            _optionsStore = optionsStore;
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
             _changeTokenProducer = changeTokenProducer;
@@ -66,7 +63,7 @@ namespace Stint
                 }
 
                 // run now!
-                var jobInfo = new ExecutionInfo(Name, _optionsStore);
+                var jobInfo = new ExecutionInfo(Name);
 
                 // TODO: Add options for retrying when failure.
                 await ExecuteScheduledJob(Config.Type, jobInfo, token);
@@ -75,7 +72,6 @@ namespace Stint
 
             _logger.LogInformation("Job cancelled");
         }
-
 
         public bool Disabled { get; set; } = false;
 

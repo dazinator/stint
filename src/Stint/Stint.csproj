@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Changify.Options" Version="0.1.0-alpha.31" />
+    <PackageReference Include="Changify.Options" Version="0.1.0-alpha.32" />
     <PackageReference Include="Cronos" Version="0.7.0" />
     <PackageReference Include="Dazinator.Extensions.DependencyInjection.NamedServices" Version="1.1.0-alpha.81" /> 
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.1.12" />

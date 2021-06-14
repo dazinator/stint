@@ -5,11 +5,12 @@ namespace Stint.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Microsoft.Extensions.Configuration;
+    using Dazinator.Extensions.DependencyInjection;
+    using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Xunit;
 
-    public class StintTests
+    public partial class StintTests
     {
         [Fact]
         public void Can_Run_Scheduled_Job()
@@ -17,11 +18,19 @@ namespace Stint.Tests
 
             var jobRanEvent = new AutoResetEvent(false);
 
-            var hostBuilderTask = CreateHostBuilder(async () =>
-                {
-                    jobRanEvent.Set();
-                }, new SingletonLockProvider()
-            ).Build().RunAsync();
+
+            // services.Configure<SchedulerConfig>(configuration);
+            //   a => a.AddTransient(nameof(TestJob), (sp) => new TestJob(onJobExecuted))
+
+            var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(), (scheduler) =>
+            {
+
+                scheduler.Jobs.Add("TestJob", new ScheduledJobConfig() { Schedule = "* * * * *", Type = nameof(TestJob) });
+            }, (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
+                             {
+                                 jobRanEvent.Set();
+                             }))).Build().RunAsync();
+
 
             var signalled = jobRanEvent.WaitOne(60000);
             Assert.True(signalled);
@@ -38,14 +47,18 @@ namespace Stint.Tests
 
             for (int i = 0; i < hostCount; i++)
             {
-                var host = CreateHostBuilder(async () =>
-                {
-                    if (!jobRanEvent.Set())
-                    {
-                        failed = true;
-                    }
-                    await Task.Delay(2000);
-                }, lockProvider).Build();
+                var host = CreateHostBuilder(lockProvider,
+                    (scheduler) => scheduler.Jobs.Add("TestJob",
+                        new ScheduledJobConfig() { Schedule = "* * * * *", Type = nameof(TestJob) }),
+                        (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
+                        {
+                            if (!jobRanEvent.Set())
+                            {
+                                failed = true;
+                            }
+                            await Task.Delay(2000);
+                        }))).Build();
+
                 hosts.Add(host);
             }
 
@@ -59,36 +72,63 @@ namespace Stint.Tests
             Assert.False(failed);
         }
 
-        public static IHostBuilder CreateHostBuilder(Func<Task> onJobExecuted, ILockProvider lockProvider)
+
+        [Fact]
+        public void Can_Run_Overdue_Job()
         {
 
-            var inMemoryConfig = new Dictionary<string, string>();
-            // inMemoryConfig.Add("Scheduler", "");
-            inMemoryConfig.Add($"Scheduler:Jobs:{nameof(TestJob)}:Schedule", "* * * * *");
-            inMemoryConfig.Add($"Scheduler:Jobs:{nameof(TestJob)}:Type", nameof(TestJob));
+            var jobRanEvent = new AutoResetEvent(false);
 
-            // Scheduler
-            var config = new ConfigurationBuilder()
-                .AddEnvironmentVariables()
-                .AddInMemoryCollection(inMemoryConfig)
-                //.AddJsonFile("appsettings.json", optional: true)
-                .Build();
+            var mockAnchorStore = new MockAnchorStore();
 
-            const string JobsConfigSectionName = "Scheduler";
-            var jobsConfigSection = config.GetSection(JobsConfigSectionName);
+            // simulate a job that is overdue.
+            mockAnchorStore.CurrentAnchor = DateTime.UtcNow.AddDays(-1);
 
-
-            return Host.CreateDefaultBuilder()
+            var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
                 {
-                    services.AddScheduledJobs(jobsConfigSection, (options) =>
-                     {
-                         options.AddLockProviderInstance(lockProvider)
-                                .RegisterJobTypes(a => a.AddTransient(nameof(TestJob), (sp) => new TestJob(onJobExecuted)));
-                     });
+                    services.Configure<SchedulerConfig>((scheduler) =>
+                        scheduler.Jobs.Add("TestJob", new ScheduledJobConfig()
+                        {
+                            Schedule = "* * * * *", // every minute.
+                            Type = nameof(TestJob)
+                        }));
 
-                }); //.AddLockProviderInstance(lockProvider));
+                    services.AddScheduledJobs((options) => options.AddLockProviderInstance(new SingletonLockProvider())
+                             .RegisterJobTypes((jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set()))))
+                    .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) =>
+                    {
+
+                        return mockAnchorStore;
+                    }));
+
+                }).Build().RunAsync();
+
+
+            var signalled = jobRanEvent.WaitOne(60000);
+            jobRanEvent.Reset();
+            Assert.True(signalled);
+
+            // should run again in another minute.          
+            signalled = jobRanEvent.WaitOne(63000);
+            Assert.True(signalled);
+
         }
+
+
+        public static IHostBuilder CreateHostBuilder(
+            ILockProvider lockProvider,
+            Action<SchedulerConfig> configureScheduler,
+            Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes) =>
+
+            Host.CreateDefaultBuilder()
+                .ConfigureServices((hostContext, services) =>
+                {
+                    services.Configure(configureScheduler);
+
+                    services.AddScheduledJobs((options) => options.AddLockProviderInstance(lockProvider)
+                            .RegisterJobTypes(registerJobTypes));
+                });
 
         public class TestJob : IJob
         {

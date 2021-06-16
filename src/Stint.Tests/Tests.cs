@@ -22,30 +22,31 @@ namespace Stint.Tests
             // services.Configure<SchedulerConfig>(configuration);
             //   a => a.AddTransient(nameof(TestJob), (sp) => new TestJob(onJobExecuted))
 
-            var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(), (scheduler) =>
-            {
+            var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),
+                (scheduler) => scheduler.Jobs.Add("TestJob", new ScheduledJobConfig()
+                {
+                    Schedule = "* * * * *",
+                    Type = nameof(TestJob)
+                }),
+                (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set())))
+                .Build()
+                .RunAsync();
 
-                scheduler.Jobs.Add("TestJob", new ScheduledJobConfig() { Schedule = "* * * * *", Type = nameof(TestJob) });
-            }, (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
-                             {
-                                 jobRanEvent.Set();
-                             }))).Build().RunAsync();
 
-
-            var signalled = jobRanEvent.WaitOne(60000);
+            var signalled = jobRanEvent.WaitOne(62000);
             Assert.True(signalled);
         }
 
         [Fact]
         public async Task Only_One_Instance_Of_Scheduled_Job_Executed_Concurrently()
         {
-            int hostCount = 3;
+            var hostCount = 3;
             var jobRanEvent = new ManualResetEvent(false);
             var hosts = new List<IHost>();
             var lockProvider = new SingletonLockProvider();
-            bool failed = false;
+            var failed = false;
 
-            for (int i = 0; i < hostCount; i++)
+            for (var i = 0; i < hostCount; i++)
             {
                 var host = CreateHostBuilder(lockProvider,
                     (scheduler) => scheduler.Jobs.Add("TestJob",
@@ -79,10 +80,11 @@ namespace Stint.Tests
 
             var jobRanEvent = new AutoResetEvent(false);
 
-            var mockAnchorStore = new MockAnchorStore();
-
-            // simulate a job that is overdue.
-            mockAnchorStore.CurrentAnchor = DateTime.UtcNow.AddDays(-1);
+            var mockAnchorStore = new MockAnchorStore
+            {
+                // simulate a job that is overdue.
+                CurrentAnchor = DateTime.UtcNow.AddDays(-1)
+            };
 
             var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
@@ -96,16 +98,12 @@ namespace Stint.Tests
 
                     services.AddScheduledJobs((options) => options.AddLockProviderInstance(new SingletonLockProvider())
                              .RegisterJobTypes((jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set()))))
-                    .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) =>
-                    {
-
-                        return mockAnchorStore;
-                    }));
+                    .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchorStore));
 
                 }).Build().RunAsync();
 
 
-            var signalled = jobRanEvent.WaitOne(60000);
+            var signalled = jobRanEvent.WaitOne(3000);
             jobRanEvent.Reset();
             Assert.True(signalled);
 
@@ -134,15 +132,9 @@ namespace Stint.Tests
         {
             private readonly Func<Task> _onJobExecuted;
 
-            public TestJob(Func<Task> onJobExecuted)
-            {
-                _onJobExecuted = onJobExecuted;
-            }
+            public TestJob(Func<Task> onJobExecuted) => _onJobExecuted = onJobExecuted;
 
-            public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token)
-            {
-                await _onJobExecuted();
-            }
+            public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token) => await _onJobExecuted();
         }
     }
 }

@@ -8,15 +8,12 @@ namespace Stint
     /// </summary>
     public class EmptyLockProvider : ILockProvider
     {
-        private Task<IDisposable> _emptyLock = Task.FromResult<IDisposable>(EmptyDisposable.Instance);
+        private readonly Task<IDisposable> _emptyLock = Task.FromResult<IDisposable>(EmptyDisposable.Instance);
 
         public EmptyLockProvider()
         {
         }
 
-        public Task<IDisposable> TryAcquireAsync(string name)
-        {
-            return _emptyLock;
-        }
+        public Task<IDisposable> TryAcquireAsync(string name) => _emptyLock;
     }
 }

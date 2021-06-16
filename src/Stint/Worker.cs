@@ -255,14 +255,9 @@ namespace Stint
                     var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
                     _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
                     return nextOccurence;
-                }, cancellationToken, () =>
-                {
-                    _logger.LogWarning("Mo more occurrences for job.");
-
-                }, (delayMs) =>
-                {
-                    _logger.LogInformation("Will delay for {delayMs} ms.");
-                })
+                }, cancellationToken,
+                () => _logger.LogWarning("Mo more occurrences for job."),
+                (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs))
                 .Build()
                 .AndResourceAcquired(async () => await _lockProvider.TryAcquireAsync(jobName), // omit signal if lock cannot be acquired.
                     () => _logger.LogInformation("Job {JobName} was not triggered as lock could not be obtained, another instance may already be running.", jobName))

@@ -259,7 +259,17 @@ namespace Stint
                 () => _logger.LogWarning("Mo more occurrences for job."),
                 (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs))
                 .Build()
-                .AndResourceAcquired(async () => await _lockProvider.TryAcquireAsync(jobName), // omit signal if lock cannot be acquired.
+                .AndResourceAcquired(async () =>
+                {
+                    var aquiredLock = await _lockProvider.TryAcquireAsync(jobName);
+                    if (aquiredLock == null)
+                    {
+                        // if lock cannot be aquired, delay for atleast a minute to prevent further attempts within this period - as
+                        // // inner token may be singalled and without this delay, this token provider would immeidately re-attempt.
+                        await Task.Delay(TimeSpan.FromMinutes(1));                        
+                    }
+                    return aquiredLock;
+                }, // omit signal if lock cannot be acquired.
                     () => _logger.LogInformation("Job {JobName} was not triggered as lock could not be obtained, another instance may already be running.", jobName))
                 .Build()
                 .AndTrueAsync(async () => // omit signal if this delegate check does not return true.

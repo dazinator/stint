@@ -5,7 +5,7 @@ namespace Stint
     using System.Text.Json;
     using System.Text.Json.Serialization;
 
-    public class PolymorphicBaseClassConverter : JsonConverter<BaseTriggerConfig>
+    public class PolymorphicBaseClassConverter<TBaseClass> : JsonConverter<TBaseClass>
     {
         public string TypeDescriminatorPropertyName { get; }
 
@@ -22,9 +22,9 @@ namespace Stint
             ReverseLookupDerivedTypeMapping = new Lazy<Dictionary<Type, string>>(() => DerivedTypeMapping.BuildReverseLookupDictionary());
         }
 
-        public override bool CanConvert(Type type) => typeof(BaseTriggerConfig).IsAssignableFrom(type);
+        public override bool CanConvert(Type type) => typeof(TBaseClass).IsAssignableFrom(type);
 
-        public override BaseTriggerConfig Read(
+        public override TBaseClass Read(
             ref Utf8JsonReader reader,
             Type typeToConvert,
             JsonSerializerOptions options)
@@ -49,7 +49,7 @@ namespace Stint
                 throw new JsonException();
             }
 
-            BaseTriggerConfig baseClass;
+            TBaseClass baseClass;
             var derivedTypeName = reader.GetString();
 
             // TypeDiscriminator typeDiscriminator = (TypeDiscriminator)reader.GetInt32();
@@ -59,7 +59,7 @@ namespace Stint
             }
 
             // use copy of reader at previous postition to read entire object.
-            baseClass = (BaseTriggerConfig)JsonSerializer.Deserialize(ref derivedObjectReader, derivedType);
+            baseClass = (TBaseClass)JsonSerializer.Deserialize(ref derivedObjectReader, derivedType);
 
             if (!derivedObjectReader.Read() || derivedObjectReader.TokenType != JsonTokenType.EndObject)
             {
@@ -71,7 +71,7 @@ namespace Stint
 
         public override void Write(
             Utf8JsonWriter writer,
-            BaseTriggerConfig value,
+            TBaseClass value,
             JsonSerializerOptions options)
         {
             if (value == null)

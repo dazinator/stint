@@ -240,7 +240,7 @@ namespace Stint
             DateTime? lastReturnedAnchor = null;
 
             var scheduleTriggerConfigs = jobConfig.Triggers?.Schedules;
-            if(scheduleTriggerConfigs?.Any() ?? false)
+            if (scheduleTriggerConfigs?.Any() ?? false)
             {
                 foreach (var scheduleTriggerConfig in scheduleTriggerConfigs)
                 {
@@ -265,7 +265,7 @@ namespace Stint
                     () => _logger.LogWarning("Mo more occurrences for job."),
                     (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs));
                 }
-            }          
+            }
 
 
             //  var expression = CronExpression.Parse(jobConfig.Schedule);
@@ -293,36 +293,36 @@ namespace Stint
             //    }, cancellationToken,
             //    () => _logger.LogWarning("Mo more occurrences for job."),
             //    (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs))
-           var tokenProducer = tokenProducerBuilder.Build()
-                .AndResourceAcquired(async () =>
-                {
-                    var aquiredLock = await _lockProvider.TryAcquireAsync(jobName);
-                    if (aquiredLock == null)
-                    {
+            var tokenProducer = tokenProducerBuilder.Build()
+                 .AndResourceAcquired(async () =>
+                 {
+                     var aquiredLock = await _lockProvider.TryAcquireAsync(jobName);
+                     if (aquiredLock == null)
+                     {
                         // if lock cannot be aquired, delay for atleast a minute to prevent further attempts within this period - as
                         // // inner token may be singalled and without this delay, this token provider would immeidately re-attempt.
                         await Task.Delay(TimeSpan.FromMinutes(1));
-                    }
-                    return aquiredLock;
-                }, // omit signal if lock cannot be acquired.
-                    () => _logger.LogInformation("Job {JobName} was not triggered as lock could not be obtained, another instance may already be running.", jobName))
-                .Build()
-                .AndTrueAsync(async () => // omit signal if this delegate check does not return true.
-                {
-                    var latestAnchor = await anchorStore.GetAnchorAsync(cancellationToken);
-                    if (latestAnchor == lastReturnedAnchor)
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }, () =>
-                        {
-                            _logger.LogInformation("Job anchor has changed, perhaps job executed by another process.");
-                        })
-                .Build();
+                     }
+                     return aquiredLock;
+                 }, // omit signal if lock cannot be acquired.
+                     () => _logger.LogInformation("Job {JobName} was not triggered as lock could not be obtained, another instance may already be running.", jobName))
+                 .Build()
+                 .AndTrueAsync(async () => // omit signal if this delegate check does not return true.
+                 {
+                     var latestAnchor = await anchorStore.GetAnchorAsync(cancellationToken);
+                     if (latestAnchor == lastReturnedAnchor)
+                     {
+                         return true;
+                     }
+                     else
+                     {
+                         return false;
+                     }
+                 }, () =>
+                         {
+                             _logger.LogInformation("Job anchor has changed, perhaps job executed by another process.");
+                         })
+                 .Build();
 
             return tokenProducer;
         }

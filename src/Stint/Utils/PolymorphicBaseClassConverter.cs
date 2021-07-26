@@ -95,7 +95,7 @@ namespace Stint
             if (root.ValueKind != JsonValueKind.Object)
             {
                 throw new NotSupportedException();
-            }            
+            }
 
             foreach (var property in root.EnumerateObject())
             {

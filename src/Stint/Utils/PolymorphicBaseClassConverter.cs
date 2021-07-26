@@ -64,7 +64,7 @@ namespace Stint
             if (!derivedObjectReader.Read() || derivedObjectReader.TokenType != JsonTokenType.EndObject)
             {
                 throw new JsonException();
-            }   
+            }
 
             return baseClass;
         }
@@ -103,7 +103,7 @@ namespace Stint
             }
 
             writer.WriteEndObject();
-            writer.Flush();           
+            writer.Flush();
         }
     }
 }

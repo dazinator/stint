@@ -299,9 +299,9 @@ namespace Stint
                      var aquiredLock = await _lockProvider.TryAcquireAsync(jobName);
                      if (aquiredLock == null)
                      {
-                        // if lock cannot be aquired, delay for atleast a minute to prevent further attempts within this period - as
-                        // // inner token may be singalled and without this delay, this token provider would immeidately re-attempt.
-                        await Task.Delay(TimeSpan.FromMinutes(1));
+                         // if lock cannot be aquired, delay for atleast a minute to prevent further attempts within this period - as
+                         // // inner token may be singalled and without this delay, this token provider would immeidately re-attempt.
+                         await Task.Delay(TimeSpan.FromMinutes(1));
                      }
                      return aquiredLock;
                  }, // omit signal if lock cannot be acquired.

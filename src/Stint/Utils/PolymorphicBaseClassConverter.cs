@@ -5,7 +5,7 @@ namespace Stint
     using System.Text.Json;
     using System.Text.Json.Serialization;
 
-    public class TriggerConfigBaseClassConverter : JsonConverter<BaseTriggerConfig>
+    public class PolymorphicBaseClassConverter : JsonConverter<BaseTriggerConfig>
     {
         public string TypeDescriminatorPropertyName { get; }
 
@@ -14,19 +14,13 @@ namespace Stint
         public Lazy<Dictionary<Type, string>> ReverseLookupDerivedTypeMapping { get; }
 
 
-        public TriggerConfigBaseClassConverter(Dictionary<string, Type> derivedTypeMapping, string typeDescriminatorPropertyName = "TypeDiscriminator")
+        public PolymorphicBaseClassConverter(Dictionary<string, Type> derivedTypeMapping, string typeDescriminatorPropertyName = "TypeDiscriminator")
         {
             TypeDescriminatorPropertyName = typeDescriminatorPropertyName;
             DerivedTypeMapping = derivedTypeMapping;
             // lazy so we avoid doing work in construcotr and defer until first use.
             ReverseLookupDerivedTypeMapping = new Lazy<Dictionary<Type, string>>(() => DerivedTypeMapping.BuildReverseLookupDictionary());
         }
-        //private enum TypeDiscriminator
-        //{
-        //    BaseClass = 0,
-        //    DerivedA = 1,
-        //    DerivedB = 2
-        //}
 
         public override bool CanConvert(Type type) => typeof(BaseTriggerConfig).IsAssignableFrom(type);
 
@@ -70,40 +64,7 @@ namespace Stint
             if (!derivedObjectReader.Read() || derivedObjectReader.TokenType != JsonTokenType.EndObject)
             {
                 throw new JsonException();
-            }
-
-            //switch (typeDiscriminator)
-            //{
-            //    case TypeDiscriminator.DerivedA:
-            //        if (!reader.Read() || reader.GetString() != "TypeValue")
-            //        {
-            //            throw new JsonException();
-            //        }
-            //        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
-            //        {
-            //            throw new JsonException();
-            //        }
-            //        baseClass = (DerivedA)JsonSerializer.Deserialize(ref reader, typeof(DerivedA));
-            //        break;
-            //    case TypeDiscriminator.DerivedB:
-            //        if (!reader.Read() || reader.GetString() != "TypeValue")
-            //        {
-            //            throw new JsonException();
-            //        }
-            //        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
-            //        {
-            //            throw new JsonException();
-            //        }
-            //        baseClass = (DerivedB)JsonSerializer.Deserialize(ref reader, typeof(DerivedB));
-            //        break;
-            //    default:
-            //        throw new NotSupportedException();
-            //}
-
-            //if (!reader.Read() || reader.TokenType != JsonTokenType.EndObject)
-            //{
-            //    throw new JsonException();
-            //}
+            }   
 
             return baseClass;
         }
@@ -113,8 +74,6 @@ namespace Stint
             BaseTriggerConfig value,
             JsonSerializerOptions options)
         {
-           // writer.WriteStartObject();
-
             if (value == null)
             {
                 throw new ArgumentNullException(nameof(value));
@@ -144,36 +103,7 @@ namespace Stint
             }
 
             writer.WriteEndObject();
-            writer.Flush();
-
-
-            //json = json.TrimStart('{').TrimEnd('}');
-
-            //json = $"{json},\"TypeDescriminatorPropertyName\":\"{name}\"}
-            
-            //doc.RootElement.add
-
-            // writer.WriteString(TypeDescriminatorPropertyName, name);
-
-
-            //if (value is DerivedA derivedA)
-            //{
-            //    writer.WriteNumber(TypeDescriminatorPropertyName, (int)TypeDiscriminator.DerivedA);
-            //    writer.WritePropertyName("TypeValue");
-            //    JsonSerializer.Serialize(writer, derivedA);
-            //}
-            //else if (value is DerivedB derivedB)
-            //{
-            //    writer.WriteNumber(TypeDescriminatorPropertyName, (int)TypeDiscriminator.DerivedB);
-            //    writer.WritePropertyName("TypeValue");
-            //    JsonSerializer.Serialize(writer, derivedB);
-            //}
-            //else
-            //{
-            //    throw new NotSupportedException();
-            //}
-
-            //writer.WriteEndObject();
+            writer.Flush();           
         }
     }
 }

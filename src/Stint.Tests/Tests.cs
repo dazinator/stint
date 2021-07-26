@@ -6,6 +6,7 @@ namespace Stint.Tests
     using System.Threading;
     using System.Threading.Tasks;
     using Dazinator.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Xunit;
@@ -23,11 +24,18 @@ namespace Stint.Tests
             //   a => a.AddTransient(nameof(TestJob), (sp) => new TestJob(onJobExecuted))
 
             var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),
-                (scheduler) => scheduler.Jobs.Add("TestJob", new ScheduledJobConfig()
+
+            (config) => config.Jobs.Add("TestJob", new ScheduledJobConfig()
+            {
+                Type = nameof(TestJob),
+                Triggers = new TriggersConfig()
                 {
-                    Schedule = "* * * * *",
-                    Type = nameof(TestJob)
-                }),
+                    Schedules = {
+                         new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
+                    }
+                }
+            }),
+
                 (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set())))
                 .Build()
                 .RunAsync();
@@ -49,16 +57,25 @@ namespace Stint.Tests
             for (var i = 0; i < hostCount; i++)
             {
                 var host = CreateHostBuilder(lockProvider,
-                    (scheduler) => scheduler.Jobs.Add("TestJob",
-                        new ScheduledJobConfig() { Schedule = "* * * * *", Type = nameof(TestJob) }),
-                        (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
-                        {
-                            if (!jobRanEvent.Set())
-                            {
-                                failed = true;
-                            }
-                            await Task.Delay(2000);
-                        }))).Build();
+
+                (config) => config.Jobs.Add("TestJob", new ScheduledJobConfig()
+                {
+                    Type = nameof(TestJob),
+                    Triggers = new TriggersConfig()
+                    {
+                        Schedules = {
+                            new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
+                        }
+                    }
+                }),
+                (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
+                {
+                    if (!jobRanEvent.Set())
+                    {
+                        failed = true;
+                    }
+                    await Task.Delay(2000);
+                }))).Build();
 
                 hosts.Add(host);
             }
@@ -89,12 +106,17 @@ namespace Stint.Tests
             var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
                 {
-                    services.Configure<SchedulerConfig>((scheduler) =>
-                        scheduler.Jobs.Add("TestJob", new ScheduledJobConfig()
+
+                    services.Configure<JobsConfig>((config) => config.Jobs.Add("TestJob", new ScheduledJobConfig()
+                    {
+                        Type = nameof(TestJob),
+                        Triggers = new TriggersConfig()
                         {
-                            Schedule = "* * * * *", // every minute.
-                            Type = nameof(TestJob)
-                        }));
+                            Schedules = {
+                                new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
+                            }
+                        }
+                    }));
 
                     services.AddScheduledJobs((options) => options.AddLockProviderInstance(new SingletonLockProvider())
                              .RegisterJobTypes((jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set()))))
@@ -113,20 +135,48 @@ namespace Stint.Tests
 
         }
 
+        //public void OptionsBindingTests()
+        //{
+
+        //    var configBuilder = new ConfigurationBuilder();
+        //    configBuilder.AddJsonFile("configtest.json");
+        //    var config = configBuilder.Build();
+
+
+        //    var services = new ServiceCollection();
+        //    services.AddOptions<SchedulerConfig>();
+
+
+        //    var instance = new SchedulerConfig();
+
+        //    config.Bind(instance, a =>
+        //    {
+        //        a.BindNonPublicProperties
+
+        //    });
+        //    config.Providers
+
+
+
+
+        //}
+
+
+
 
         public static IHostBuilder CreateHostBuilder(
-            ILockProvider lockProvider,
-            Action<SchedulerConfig> configureScheduler,
-            Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes) =>
+        ILockProvider lockProvider,
+        Action<JobsConfig> configureScheduler,
+        Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes) =>
 
-            Host.CreateDefaultBuilder()
-                .ConfigureServices((hostContext, services) =>
-                {
-                    services.Configure(configureScheduler);
+        Host.CreateDefaultBuilder()
+            .ConfigureServices((hostContext, services) =>
+            {
+                services.Configure(configureScheduler);
 
-                    services.AddScheduledJobs((options) => options.AddLockProviderInstance(lockProvider)
-                            .RegisterJobTypes(registerJobTypes));
-                });
+                services.AddScheduledJobs((options) => options.AddLockProviderInstance(lockProvider)
+                        .RegisterJobTypes(registerJobTypes));
+            });
 
         public class TestJob : IJob
         {

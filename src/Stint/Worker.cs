@@ -19,7 +19,7 @@ namespace Stint
 
         private readonly Dictionary<string, ScheduledJobRunner> _jobs = new Dictionary<string, ScheduledJobRunner>();
         private readonly ILogger<Worker> _logger;
-        private readonly IOptionsMonitor<SchedulerConfig> _optionsMonitor;
+        private readonly IOptionsMonitor<JobsConfig> _optionsMonitor;
         private readonly IServiceProvider _serviceProvider;
         private readonly IAnchorStoreFactory _anchorStoreFactory;
         private readonly ILockProvider _lockProvider;
@@ -31,7 +31,7 @@ namespace Stint
 
         public Worker(
             ILogger<Worker> logger,
-            IOptionsMonitor<SchedulerConfig> optionsMonitor,
+            IOptionsMonitor<JobsConfig> optionsMonitor,
             IServiceProvider serviceProvider,
             IAnchorStoreFactory anchorStoreFactory,
             ILockProvider lockProvider)
@@ -235,30 +235,65 @@ namespace Stint
         {
             // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
             // If its wrong the job should not be created.
-            var expression = CronExpression.Parse(jobConfig.Schedule);
+
+            var tokenProducerBuilder = new ChangeTokenProducerBuilder();
             DateTime? lastReturnedAnchor = null;
 
-            var tokenProducer = new ChangeTokenProducerBuilder()
-                .IncludeDatetimeScheduledTokenProducer(async () =>
+            var scheduleTriggerConfigs = jobConfig.Triggers?.Schedules;
+            if(scheduleTriggerConfigs?.Any() ?? false)
+            {
+                foreach (var scheduleTriggerConfig in scheduleTriggerConfigs)
                 {
-                    // This token producer will signal tokens at the specified datetime. Will calculate the next datetime a job should run based on looking at when it last ran, and its schedule etc.
-                    var previousOccurrence = await anchorStore.GetAnchorAsync(cancellationToken);
-                    lastReturnedAnchor = previousOccurrence;
-                    if (previousOccurrence == null)
+                    var expression = CronExpression.Parse(scheduleTriggerConfig.Schedule);
+                    tokenProducerBuilder.IncludeDatetimeScheduledTokenProducer(async () =>
                     {
-                        _logger.LogInformation("Job has not previously run");
-                    }
+                        // This token producer will signal tokens at the specified datetime. Will calculate the next datetime a job should run based on looking at when it last ran, and its schedule etc.
+                        var previousOccurrence = await anchorStore.GetAnchorAsync(cancellationToken);
+                        lastReturnedAnchor = previousOccurrence;
+                        if (previousOccurrence == null)
+                        {
+                            _logger.LogInformation("Job has not previously run");
+                        }
 
-                    var fromWhenShouldItNextRun =
-                        previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
+                        var fromWhenShouldItNextRun =
+                            previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
 
-                    var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
-                    _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
-                    return nextOccurence;
-                }, cancellationToken,
-                () => _logger.LogWarning("Mo more occurrences for job."),
-                (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs))
-                .Build()
+                        var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
+                        _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
+                        return nextOccurence;
+                    }, cancellationToken,
+                    () => _logger.LogWarning("Mo more occurrences for job."),
+                    (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs));
+                }
+            }          
+
+
+            //  var expression = CronExpression.Parse(jobConfig.Schedule);
+
+
+
+
+            //var tokenProducer = tokenProducerBuilder
+            //    .IncludeDatetimeScheduledTokenProducer(async () =>
+            //    {
+            //        // This token producer will signal tokens at the specified datetime. Will calculate the next datetime a job should run based on looking at when it last ran, and its schedule etc.
+            //        var previousOccurrence = await anchorStore.GetAnchorAsync(cancellationToken);
+            //        lastReturnedAnchor = previousOccurrence;
+            //        if (previousOccurrence == null)
+            //        {
+            //            _logger.LogInformation("Job has not previously run");
+            //        }
+
+            //        var fromWhenShouldItNextRun =
+            //            previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
+
+            //        var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
+            //        _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
+            //        return nextOccurence;
+            //    }, cancellationToken,
+            //    () => _logger.LogWarning("Mo more occurrences for job."),
+            //    (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs))
+           var tokenProducer = tokenProducerBuilder.Build()
                 .AndResourceAcquired(async () =>
                 {
                     var aquiredLock = await _lockProvider.TryAcquireAsync(jobName);
@@ -284,9 +319,9 @@ namespace Stint
                         return false;
                     }
                 }, () =>
-                {
-                    _logger.LogInformation("Job anchor has changed, perhaps job executed by another process.");
-                })
+                        {
+                            _logger.LogInformation("Job anchor has changed, perhaps job executed by another process.");
+                        })
                 .Build();
 
             return tokenProducer;

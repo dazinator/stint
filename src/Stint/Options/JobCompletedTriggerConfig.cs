@@ -1,4 +1,4 @@
-﻿namespace Stint
+namespace Stint
 {
     public class JobCompletedTriggerConfig : BaseTriggerConfig
     {

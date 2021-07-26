@@ -1,8 +1,8 @@
-﻿namespace Stint
+namespace Stint
 {
     public abstract class BaseTriggerConfig
     {
-       // public abstract string Type { get; set; }
+        // public abstract string Type { get; set; }
 
     }
 

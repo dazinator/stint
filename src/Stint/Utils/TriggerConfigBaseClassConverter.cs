@@ -113,7 +113,7 @@ namespace Stint
             BaseTriggerConfig value,
             JsonSerializerOptions options)
         {
-           // writer.WriteStartObject();
+            // writer.WriteStartObject();
 
             if (value == null)
             {
@@ -136,7 +136,7 @@ namespace Stint
             if (root.ValueKind != JsonValueKind.Object)
             {
                 throw new NotSupportedException();
-            }            
+            }
 
             foreach (var property in root.EnumerateObject())
             {
@@ -150,7 +150,7 @@ namespace Stint
             //json = json.TrimStart('{').TrimEnd('}');
 
             //json = $"{json},\"TypeDescriminatorPropertyName\":\"{name}\"}
-            
+
             //doc.RootElement.add
 
             // writer.WriteString(TypeDescriminatorPropertyName, name);

@@ -1,4 +1,4 @@
-﻿namespace Stint
+namespace Stint
 {
     using System.Threading;
     using Microsoft.Extensions.DependencyInjection;

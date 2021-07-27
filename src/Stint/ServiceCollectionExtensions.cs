@@ -12,7 +12,10 @@ namespace Stint
             services.AddHostedService<Worker>();
             var builder = new StintServicesBuilder(services);
             builder.AddFileSystemAnchorStore()
-                   .AddLockProvider<EmptyLockProvider>();
+                   .AddLockProvider<EmptyLockProvider>()
+                   .AddJobChangeTokenProducerFactory<JobChangeTokenProducerFactory>()
+                   .AddJobRunnerFactory<JobRunnerFactory>();
+
 
             configure?.Invoke(builder);
             return services;

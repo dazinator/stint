@@ -4,8 +4,8 @@ namespace Stint
 
     public class JobsConfig
     {
-        public JobsConfig() => Jobs = new Dictionary<string, ScheduledJobConfig>();
+        public JobsConfig() => Jobs = new Dictionary<string, JobConfig>();
 
-        public Dictionary<string, ScheduledJobConfig> Jobs { get; set; }
+        public Dictionary<string, JobConfig> Jobs { get; set; }
     }
 }

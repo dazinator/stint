@@ -25,7 +25,7 @@ namespace Stint.Tests
 
             var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),
 
-            (config) => config.Jobs.Add("TestJob", new ScheduledJobConfig()
+            (config) => config.Jobs.Add("TestJob", new JobConfig()
             {
                 Type = nameof(TestJob),
                 Triggers = new TriggersConfig()
@@ -58,7 +58,7 @@ namespace Stint.Tests
             {
                 var host = CreateHostBuilder(lockProvider,
 
-                (config) => config.Jobs.Add("TestJob", new ScheduledJobConfig()
+                (config) => config.Jobs.Add("TestJob", new JobConfig()
                 {
                     Type = nameof(TestJob),
                     Triggers = new TriggersConfig()
@@ -107,7 +107,7 @@ namespace Stint.Tests
                 .ConfigureServices((hostContext, services) =>
                 {
 
-                    services.Configure<JobsConfig>((config) => config.Jobs.Add("TestJob", new ScheduledJobConfig()
+                    services.Configure<JobsConfig>((config) => config.Jobs.Add("TestJob", new JobConfig()
                     {
                         Type = nameof(TestJob),
                         Triggers = new TriggersConfig()

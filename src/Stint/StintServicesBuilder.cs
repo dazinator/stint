@@ -50,6 +50,32 @@ namespace Stint
             return this;
         }
 
+        public StintServicesBuilder AddJobChangeTokenProducerFactory(IJobChangeTokenProducerFactory factoryInstance)
+        {
+            Services.AddSingleton<IJobChangeTokenProducerFactory>(factoryInstance);
+            return this;
+        }
+
+        public StintServicesBuilder AddJobChangeTokenProducerFactory<TJobChangeTokenProducerFactory>()
+            where TJobChangeTokenProducerFactory: class, IJobChangeTokenProducerFactory
+        {
+            Services.AddSingleton<IJobChangeTokenProducerFactory, TJobChangeTokenProducerFactory>();
+            return this;
+        }
+
+        public StintServicesBuilder AddJobRunnerFactory(IJobRunnerFactory factoryInstance)
+        {
+            Services.AddSingleton<IJobRunnerFactory>(factoryInstance);
+            return this;
+        }
+
+        public StintServicesBuilder AddJobRunnerFactory<TJobRunnerFactory>()
+            where TJobRunnerFactory : class, IJobRunnerFactory
+        {
+            Services.AddSingleton<IJobRunnerFactory, TJobRunnerFactory>();
+            return this;
+        }
+
         public StintServicesBuilder RegisterJobTypes(Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes = null)
         {
             var builder = new NamedServiceRegistrationsBuilder<IJob>(Services);

@@ -8,18 +8,18 @@ namespace Stint
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
 
-    public class ScheduledJobRunner : IDisposable
+    public class JobRunner : IDisposable
     {
         private readonly IAnchorStore _anchorStore;
-        private readonly ILogger<ScheduledJobRunner> _logger;
+        private readonly ILogger<JobRunner> _logger;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
 
-        public ScheduledJobRunner(
+        public JobRunner(
                 string name,
-                ScheduledJobConfig config,
+                JobConfig config,
                 IAnchorStore anchorStore,
-                ILogger<ScheduledJobRunner> logger,
+                ILogger<JobRunner> logger,
                 IServiceScopeFactory serviceScopeFactory,
                 IChangeTokenProducer changeTokenProducer
             )
@@ -32,9 +32,9 @@ namespace Stint
             _changeTokenProducer = changeTokenProducer;
         }
 
-        public CancellationTokenSource CancellationTokenSource { get; set; }
+        private CancellationTokenSource CancellationTokenSource { get; set; }
         public string Name { get; }
-        public ScheduledJobConfig Config { get; }
+        public JobConfig Config { get; }
         public void Dispose()
         {
             CancellationTokenSource?.Cancel();
@@ -50,7 +50,7 @@ namespace Stint
             return RunToScheduleAsync(CancellationTokenSource.Token);
         }
 
-        public async Task RunToScheduleAsync(CancellationToken token)
+        private async Task RunToScheduleAsync(CancellationToken token)
         {
             // DateTime? previousOccurrence = null;         
 
@@ -66,7 +66,7 @@ namespace Stint
                 var jobInfo = new ExecutionInfo(Name);
 
                 // TODO: Add options for retrying when failure.
-                await ExecuteScheduledJob(Config.Type, jobInfo, token);
+                await ExecuteJob(Config.Type, jobInfo, token);
                 var newAnchor = await _anchorStore.DropAnchorAsync(token);
                 // wait atelast one second before running again.
                 await Task.Delay(1000);
@@ -78,7 +78,7 @@ namespace Stint
 
         public bool Disabled { get; set; } = false;
 
-        protected virtual async Task ExecuteScheduledJob(string jobTypeName, ExecutionInfo runInfo, CancellationToken token)
+        protected virtual async Task ExecuteJob(string jobTypeName, ExecutionInfo runInfo, CancellationToken token)
         {
             using (var scope = _serviceScopeFactory.CreateScope())
             {

@@ -57,7 +57,7 @@ namespace Stint
         }
 
         public StintServicesBuilder AddJobChangeTokenProducerFactory<TJobChangeTokenProducerFactory>()
-            where TJobChangeTokenProducerFactory: class, IJobChangeTokenProducerFactory
+            where TJobChangeTokenProducerFactory : class, IJobChangeTokenProducerFactory
         {
             Services.AddSingleton<IJobChangeTokenProducerFactory, TJobChangeTokenProducerFactory>();
             return this;

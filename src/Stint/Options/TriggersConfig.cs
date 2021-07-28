@@ -12,6 +12,10 @@ namespace Stint
         public List<ScheduledTriggerConfig> Schedules { get; set; }
         public List<JobCompletedTriggerConfig> JobCompletions { get; set; }
 
+        /// <summary>
+        /// Whether the job can be manually triggered.
+        /// </summary>
+        public bool Manual { get; set; } = false;
         //private int GetTriggersHashCode()
         //{
         //    unchecked

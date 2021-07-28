@@ -6,11 +6,16 @@ Stint allows your existing dotnet application to run jobs.
 
 ## Features
 
-- Scheduled jobs
-  - Are configured using the `IOptions` pattern so can be configured from a wide variety of sources, and can be responsive to config changes at runtime.
-  - Jobs are run with cancellation token so can be cancelled gracefully. They will be signalled to cancel if for example, the jobs scheduled is changed etc and the job needs to be reloaded.
-  - Supports locking, so you can implement your own `ILockProvider` to prevent multiple instances of a job from being signalled concurrently when scaling to multiple nodes for example.
+- jobs
+  - Are configured using the `IOptions` pattern so can be configured from a wide variety of sources, and are responsive to config changes at runtime.
+  - Jobs are async methods run with cancellation tokens so you can exit gracefully, if for example the host is shutting down, or the job needs to be terminated for a config reload.
+  - Support locking, so you can implement your own `ILockProvider` to prevent multiple instances of a job from being signalled concurrently when scaling to multiple nodes. Default `ILockProvider` provides a no-op lock.
     
+- triggers
+  - Schedule (cron)
+  - Manual invocation (i.e inject `IJobManualTriggerInvoker` and call `bool Trigger(string jobName)` )
+  - JobCompletion (i.e a job can be automatically triggered when another job with the specified name completes)
+
 # Getting Started
 
 Implement a job class. This is just a class that implements the `IJob` interface:
@@ -36,6 +41,8 @@ Implement a job class. This is just a class that implements the `IJob` interface
 
 
   ```
+    
+Note: You can use DI as usual for injecting dependencies into job classes.
 
  Add `AddScheduledJobs` services, and register your available job classes.
  
@@ -49,41 +56,107 @@ Implement a job class. This is just a class that implements the `IJob` interface
 
   Each Job class is registered with a job type name, which is used to refer to it when configuring jobs of that type.
 
-  Next configure your job schedules. This uses the standard `IOptions` pattern, so you can bind the config from `Json` config, pre or post configure hooks, or any other sources that support this pattern.
+  Next configure your job instances, and there triggers.
+  This uses the standard `IOptions` pattern, so you can bind the config from `Json` config, pre or post configure hooks, or any other sources that support this pattern.
     
   ```
-   services.Configure<SchedulerConfig>((scheduler) =>
-                        scheduler.Jobs.Add("TestJob", new ScheduledJobConfig()
+  services.Configure<JobsConfig>((config) =>
+                    {
+
+                        // overdue job will run immdiately
+                        config.Jobs.Add("TestJob", new JobConfig()
                         {
-                            Schedule = "* * * * *", // every minute.
-                            Type = nameof(MyCoolJob) // must match a job type name you have registered a job class with.
-                        }));
+                            Type = nameof(TestJob),
+                            Triggers = new TriggersConfig()
+                            {
+                                Schedules = {
+                                    new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
+                                }
+                            }
+                        });
 
-  ```
-  
+                        // we want this job to run off the back of the other job completing so we add a JobCompletions trigger.
+                        config.Jobs.Add("TestChainedJob", new JobConfig()
+                        {
+                            Type = nameof(TestJob),
+                            Triggers = new TriggersConfig()
+                            {
+                                JobCompletions = {
+                                    new JobCompletedTriggerConfig(){ JobName ="TestJob" }
+                                }
+                            }
+                        });
+                    });
 
-Note: You can use DI as usual for injecting dependencies into job classes.
+  ``` 
+
+  You can add multiple triggers for each job. The job will run when any of the triggers signal. 
+  So if you add a schedule trigger, and a JobCompletion trigger, the job will run when either the schedule trigger signals its time, or the specified job completes for the completion trigger.
+
+ ### Manual triggers
+
+ To allow manually triggering a job, you have to enable the `Manual` trigger:
+
+ ```
+  config.Jobs.Add("TestChainedJob", new JobConfig()
+                        {
+                            Type = nameof(TestJob),
+                            Triggers = new TriggersConfig()
+                            {
+                                Manual = true,
+                                JobCompletions = {
+                                    new JobCompletedTriggerConfig(){ JobName ="TestJob" }
+                                }
+                            }
+                        });
+```
+
+You can then trigger the job to run from a button click or api call or any other event in your application:
+
+```csharp
+
+ IJobManualTriggerInvoker manualTriggerInvoker = GetOrInjectThisService<IJobManualTriggerInvoker>();
+ bool triggered = manualTriggerInvoker.Trigger("TestChainedJob");
+
+```
+
+Note: `triggered` will be false if the job name specified does not have a manual trigger enabled.
 
 ## Using config
 
 If you want to bind the scheduler jobs to a json config file, you'll json will need to look like this:
 
 ```json
-"JobsService": {
+
+"Stint": {
     "Jobs": {
-      "TestJob":  {       
-        "Schedule": "[CRON]",
-        "Type" : "MyCoolJob"
+      "TestJob": {
+        "Type": "MyCoolJob",
+        "Triggers": {
+          "Schedules": [
+            {
+              "Schedule": "* * * * *"
+            }
+          ],
+          "JobCompletions": [
+            {
+              "JobName": "AnotherTestJob"
+            }
+          ]
+        }
       },
       "AnotherTestJob": {
-       "Schedule": "[CRON]",
-       "Type" : "MyCoolJob"
-      },
-      "DifferentJob": {
-       "Schedule": "[CRON]",
-       "Type" : "MyOtherCoolJob"
+        "Type": "MyCoolJob",
+        "Triggers": {
+          "Schedules": [
+            {
+              "Schedule": "* * * * *"
+            }
+          ],
+          "Manual":  true
+        }
       }
-    }   
+    }
   }
 
 ```
@@ -91,8 +164,8 @@ If you want to bind the scheduler jobs to a json config file, you'll json will n
 - Jobs have unique names - i.e "AnotherTestJob", "DifferentJob" etc as shown above.
 - Each job has a "Type" which is a name that maps to a specific registered job class in the code - i.e "MyCoolJob", "MyOtherCoolJob" as shown above.
   This tells the job runner which job class to execute for this job.
-- Each job has a "Schedule" - this is a CRON expression that determines when this scheduled job should run.
-- You can change the configuration whilst the application is running and the scheduler will reload / reconfiugre any necessary jobs in memory as necessary to reflect latest configuration.
+- Each job has a `Triggers` section where different kinds of triggers can be configured for the job.
+- You can change the configuration whilst the application is running and the scheduler will reload / reconfigure any necessary jobs in memory as necessary to reflect latest configuration. If a jobs configuration is updated and it is currently executing, it will be signalled for cancellation.
 
 ## Schedule Syntax (cron)
 
@@ -112,14 +185,15 @@ For the CRON expression syntax, see: https://github.com/HangfireIO/Cronos#cron-f
 * * * * * *
 ```
 
-## How does scheduling work
+## How does job scheduling work
 
 After a scheduled job has been executed, a file / anchor is saved using the `IAnchorStore` implementation, which by default saves an anchor file to your applications content root directory.
 The anchor contains the date and time that the job last executed.
-The scheduler compares the `schedule` you've specified, to the anchor file for the job, and works out when the job needs to be executed next. 
-It then asynchronously delays until the appointed time.
-If the job is scheduled to run every sunday, and you don't turn your machine on for a given day, when you turn it on next, and the job runner starts, it will detect that the job is overdue (based on the last anchor point and the current schedule) and will execute the job immediately, and save a new anchor file. 
-This ensures that overdue jobs are run in the case the application went down for a time etc.
+Jobs that have scheduled triggers, compare the configured `schedule` you've specified, to the anchor file for the job.
+- If there is no anchor file then it is assumed the job has never been run, and the next occurrence will be calculated from `now`.
+- If there is an anchor file, then the next occurrence is calculated from that last anchor time. 
+If the next occurrence is calculated to be in the past (i.e becuase there was an anchor file, but the current configured schedule should dictate the job has run since then) then the job is presumed to be `overdue` and it will be run immdiately.
+If the next occurrence is in the future, then the scheduler asynchronously delays until the next occurrence.
 
 ### What about retries
 
@@ -128,9 +202,11 @@ Once the job has completed - even if it throws an exception, the scheduler will 
 
 ### What about scaling?
 
+#### Locking
+
 If you run multiple instances of the job runner application, you'll want to configure the `ILockProvider` so that the same scheduled job doesn't run simulataneously on multiple nodes / processes.
 
-Implement this interdace to use whatever distributed lock mechanism you want:
+Implement this interface to use whatever distributed lock mechanism you want:
 
 ```
     public interface ILockProvider
@@ -156,3 +232,14 @@ Then register your lock provider:
 ```
 
 The lock provider that is registered by default, is an empty lock provider, which means there is no locking, and jobs will be allowed to execute simultaneosly.
+
+#### Events
+
+`Job Completion` triggers use a `pub sub` mechanism. 
+When a job has completed, an event is published with the name of the job that completed. 
+The `Job Completion` trigger subscribes to this event, and triggers when the completed job name matches the job name for the trigger.
+
+All this means, job chaning works by default in the same process, becuase the pub / sub mechanism is in process, and is not distrubuted.
+If you want to allow other worker nodes to run jobs in the chain you'll have to register custom implementations of `IPublisher<JobCompletedEventArgs>' and `ISubscriber<JobCompletedEventArgs>'.
+When the job completed message is published, you can then take control of the publish and publish a message to a distributed pub sub system. 
+Likewise when the JobCompletion trigger subscribes you can take control of the subscription and subsribe to your distributed pub sub topic.

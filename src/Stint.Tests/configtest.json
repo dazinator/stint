@@ -30,7 +30,8 @@
             {
               "Schedule": "* * * * *"
             }
-          ]
+          ],
+          "Manual":  true
         }
       }
     }

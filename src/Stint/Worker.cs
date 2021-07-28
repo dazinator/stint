@@ -14,7 +14,7 @@ namespace Stint
         private readonly Func<IChangeToken> _changeTokenProducer;
         private readonly IDisposable _changeTokenProducerLifetime;
 
-        private readonly Dictionary<string, JobRunner> _jobs = new Dictionary<string, JobRunner>();
+        private readonly Dictionary<string, IJobRunner> _jobs = new Dictionary<string, IJobRunner>();
         private readonly ILogger<Worker> _logger;
         private readonly IOptionsMonitor<JobsConfig> _optionsMonitor;
         private readonly IJobRunnerFactory _jobRunnerFactory;

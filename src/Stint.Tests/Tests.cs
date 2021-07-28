@@ -6,7 +6,6 @@ namespace Stint.Tests
     using System.Threading;
     using System.Threading.Tasks;
     using Dazinator.Extensions.DependencyInjection;
-    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Xunit;
@@ -90,7 +89,6 @@ namespace Stint.Tests
             Assert.False(failed);
         }
 
-
         [Fact]
         public void Can_Run_Overdue_Job()
         {
@@ -135,34 +133,71 @@ namespace Stint.Tests
 
         }
 
-        //public void OptionsBindingTests()
-        //{
+        [Fact]
+        public void Can_Chain_Jobs()
+        {
 
-        //    var configBuilder = new ConfigurationBuilder();
-        //    configBuilder.AddJsonFile("configtest.json");
-        //    var config = configBuilder.Build();
+            var jobRanEvent = new AutoResetEvent(false);
+            var chainedJobRanEvent = new AutoResetEvent(false);
 
+            var mockAnchors = new Dictionary<string, MockAnchorStore>()
+            {
+                {"TestJob", new MockAnchorStore  { CurrentAnchor = DateTime.UtcNow.AddDays(-1) } },
+                {"TestChainedJob", new MockAnchorStore  { CurrentAnchor = DateTime.UtcNow.AddDays(-1) } }
+            };
 
-        //    var services = new ServiceCollection();
-        //    services.AddOptions<SchedulerConfig>();
+            var host = Host.CreateDefaultBuilder()
+                .ConfigureServices((hostContext, services) =>
+                {
 
+                    services.Configure<JobsConfig>((config) =>
+                    {
 
-        //    var instance = new SchedulerConfig();
+                        // overdue job will run immdiately
+                        config.Jobs.Add("TestJob", new JobConfig()
+                        {
+                            Type = nameof(TestJob),
+                            Triggers = new TriggersConfig()
+                            {
+                                Manual = true,
+                                //Schedules = {
+                                //    new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
+                                //}
+                            }
+                        });
 
-        //    config.Bind(instance, a =>
-        //    {
-        //        a.BindNonPublicProperties
+                        // we want this job to run off the back of the other job completing so we add a job completion trigger
+                        config.Jobs.Add("TestChainedJob", new JobConfig()
+                        {
+                            Type = nameof(TestChainedJob),
+                            Triggers = new TriggersConfig()
+                            {
+                                JobCompletions = {
+                                    new JobCompletedTriggerConfig(){ JobName ="TestJob" }
+                                }
+                            }
+                        });
+                    });
 
-        //    });
-        //    config.Providers
+                    services.AddScheduledJobs(a => a.RegisterJobTypes((jobTypes) =>
+                                  jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set()))
+                                          .AddTransient(nameof(TestChainedJob), (sp) => new TestChainedJob(async () => chainedJobRanEvent.Set()))
 
+                                ))
+                                .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchors[jobName]));
+                }).Build();
 
+            var hostTask = host.RunAsync();
+            var manualTriggerInvoker = host.Services.GetRequiredService<IJobManualTriggerInvoker>();
+            manualTriggerInvoker.Trigger("TestJob");
 
+            var signalled = jobRanEvent.WaitOne(3000);
+            Assert.True(signalled);
 
-        //}
+            signalled = chainedJobRanEvent.WaitOne(65000);
+            Assert.True(signalled);
 
-
-
+        }
 
         public static IHostBuilder CreateHostBuilder(
         ILockProvider lockProvider,
@@ -183,6 +218,15 @@ namespace Stint.Tests
             private readonly Func<Task> _onJobExecuted;
 
             public TestJob(Func<Task> onJobExecuted) => _onJobExecuted = onJobExecuted;
+
+            public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token) => await _onJobExecuted();
+        }
+
+        public class TestChainedJob : IJob
+        {
+            private readonly Func<Task> _onJobExecuted;
+
+            public TestChainedJob(Func<Task> onJobExecuted) => _onJobExecuted = onJobExecuted;
 
             public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token) => await _onJobExecuted();
         }

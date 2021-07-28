@@ -7,13 +7,15 @@ namespace Stint
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
+    using Stint.PubSub;
 
-    public class JobRunner : IDisposable
+    public class JobRunner : IJobRunner
     {
         private readonly IAnchorStore _anchorStore;
         private readonly ILogger<JobRunner> _logger;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
+        private readonly IPublisher<JobCompletedEventArgs> _publisher;
 
         public JobRunner(
                 string name,
@@ -21,7 +23,8 @@ namespace Stint
                 IAnchorStore anchorStore,
                 ILogger<JobRunner> logger,
                 IServiceScopeFactory serviceScopeFactory,
-                IChangeTokenProducer changeTokenProducer
+                IChangeTokenProducer changeTokenProducer,
+                IPublisher<JobCompletedEventArgs> publisher
             )
         {
             Name = name;
@@ -30,6 +33,7 @@ namespace Stint
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
             _changeTokenProducer = changeTokenProducer;
+            _publisher = publisher;
         }
 
         private CancellationTokenSource CancellationTokenSource { get; set; }
@@ -47,10 +51,10 @@ namespace Stint
             // Subscribing to a change token producer, signalled by a scheduled trigger.
 
             CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            return RunToScheduleAsync(CancellationTokenSource.Token);
+            return ExecuteWhenSignalledAsync(CancellationTokenSource.Token);
         }
 
-        private async Task RunToScheduleAsync(CancellationToken token)
+        private async Task ExecuteWhenSignalledAsync(CancellationToken token)
         {
             // DateTime? previousOccurrence = null;         
 
@@ -68,6 +72,8 @@ namespace Stint
                 // TODO: Add options for retrying when failure.
                 await ExecuteJob(Config.Type, jobInfo, token);
                 var newAnchor = await _anchorStore.DropAnchorAsync(token);
+
+                _publisher.Publish(this, new JobCompletedEventArgs(this.Name));
                 // wait atelast one second before running again.
                 await Task.Delay(1000);
 
@@ -76,7 +82,7 @@ namespace Stint
             _logger.LogInformation("Job cancelled");
         }
 
-        public bool Disabled { get; set; } = false;
+        private bool Disabled { get; set; } = false;
 
         protected virtual async Task ExecuteJob(string jobTypeName, ExecutionInfo runInfo, CancellationToken token)
         {

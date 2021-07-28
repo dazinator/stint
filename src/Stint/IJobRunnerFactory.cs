@@ -4,6 +4,6 @@ namespace Stint
 
     public interface IJobRunnerFactory
     {
-        JobRunner CreateJobRunner(string jobName, JobConfig config, CancellationToken stoppingToken);
+        IJobRunner CreateJobRunner(string jobName, JobConfig config, CancellationToken stoppingToken);
     }
 }

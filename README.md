@@ -8,7 +8,7 @@ Stint allows your existing dotnet application to run jobs.
 
 - jobs
   - Are configured using the `IOptions` pattern so can be configured from a wide variety of sources, and are responsive to config changes at runtime.
-  - Jobs are async methods run with cancellation tokens so you can exit gracefully, if for example the host is shutting down, or the job needs to be terminated for a config reload.
+  - Jobs are classes with async methods with are run with cancellation tokens so you can exit gracefully, if for example the host is shutting down, or the job needs to be terminated for a config reload.
   - Support locking, so you can implement your own `ILockProvider` to prevent multiple instances of a job from being signalled concurrently when scaling to multiple nodes. Default `ILockProvider` provides a no-op lock.
     
 - triggers

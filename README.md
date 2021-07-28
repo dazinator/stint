@@ -56,14 +56,12 @@ Note: You can use DI as usual for injecting dependencies into job classes.
 
   Each Job class is registered with a job type name, which is used to refer to it when configuring jobs of that type.
 
-  Next configure your job instances, and there triggers.
+  Next configure your job instances, and their triggers.
   This uses the standard `IOptions` pattern, so you can bind the config from `Json` config, pre or post configure hooks, or any other sources that support this pattern.
     
   ```
   services.Configure<JobsConfig>((config) =>
-                    {
-
-                        // overdue job will run immdiately
+                    {                     
                         config.Jobs.Add("TestJob", new JobConfig()
                         {
                             Type = nameof(TestJob),
@@ -75,7 +73,7 @@ Note: You can use DI as usual for injecting dependencies into job classes.
                             }
                         });
 
-                        // we want this job to run off the back of the other job completing so we add a JobCompletions trigger.
+                        // example of chaining, this job has a trigger that causes it to run when the other job completes.
                         config.Jobs.Add("TestChainedJob", new JobConfig()
                         {
                             Type = nameof(TestJob),

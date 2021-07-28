@@ -132,14 +132,10 @@ If you want to bind the scheduler jobs to a json config file, you'll json will n
         "Type": "MyCoolJob",
         "Triggers": {
           "Schedules": [
-            {
-              "Schedule": "* * * * *"
-            }
+            { "Schedule": "* * * * *" }
           ],
           "JobCompletions": [
-            {
-              "JobName": "AnotherTestJob"
-            }
+            { "JobName": "AnotherTestJob" }
           ]
         }
       },
@@ -147,9 +143,7 @@ If you want to bind the scheduler jobs to a json config file, you'll json will n
         "Type": "MyCoolJob",
         "Triggers": {
           "Schedules": [
-            {
-              "Schedule": "* * * * *"
-            }
+            { "Schedule": "* * * * *" }
           ],
           "Manual":  true
         }

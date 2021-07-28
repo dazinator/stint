@@ -5,24 +5,19 @@ namespace Stint
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Cronos;
-    using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Options;
     using Microsoft.Extensions.Primitives;
     using BackgroundService = Utils.BackgroundService;
-
     public class Worker : BackgroundService
     {
         private readonly Func<IChangeToken> _changeTokenProducer;
         private readonly IDisposable _changeTokenProducerLifetime;
 
-        private readonly Dictionary<string, ScheduledJobRunner> _jobs = new Dictionary<string, ScheduledJobRunner>();
+        private readonly Dictionary<string, IJobRunner> _jobs = new Dictionary<string, IJobRunner>();
         private readonly ILogger<Worker> _logger;
-        private readonly IOptionsMonitor<SchedulerConfig> _optionsMonitor;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly IAnchorStoreFactory _anchorStoreFactory;
-        private readonly ILockProvider _lockProvider;
+        private readonly IOptionsMonitor<JobsConfig> _optionsMonitor;
+        private readonly IJobRunnerFactory _jobRunnerFactory;
         private Task _allRunningJobs;
 
         private CancellationTokenSource _cts;
@@ -31,16 +26,12 @@ namespace Stint
 
         public Worker(
             ILogger<Worker> logger,
-            IOptionsMonitor<SchedulerConfig> optionsMonitor,
-            IServiceProvider serviceProvider,
-            IAnchorStoreFactory anchorStoreFactory,
-            ILockProvider lockProvider)
+            IOptionsMonitor<JobsConfig> optionsMonitor,
+            IJobRunnerFactory jobRunnerFactory)
         {
             _logger = logger;
             _optionsMonitor = optionsMonitor;
-            _serviceProvider = serviceProvider;
-            _anchorStoreFactory = anchorStoreFactory;
-            _lockProvider = lockProvider;
+            _jobRunnerFactory = jobRunnerFactory;
             _changeTokenProducer = new ChangeTokenProducerBuilder()
                 .IncludeOptionsChangeTrigger(_optionsMonitor)
                 .Build(out var producerLifetime);
@@ -122,7 +113,6 @@ namespace Stint
 
             // Note: once we have got the new set of tasks representing our new scheduled jobs, we can await it and dispose of the previous awaited tasks.
             var jobTasks = new List<Task>();
-            var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
 
             foreach (var key in jobsToAdd)
             {
@@ -142,15 +132,11 @@ namespace Stint
                     continue;
                 }
 
-                //Note: this looks like a resolution root?
-                var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
-                var anchorStore = GetAnchorStore(key);
-                var changeTokenProducer = GetChangeTokenProducer(key, jobConfig, anchorStore, stoppingToken);
-                var newJob = new ScheduledJobRunner(key, jobConfig, GetAnchorStore(key), logger, scopeFactory, changeTokenProducer);
+                var newJob = _jobRunnerFactory.CreateJobRunner(key, jobConfig, stoppingToken);
                 var started = newJob.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, newJob);
-                _logger.LogInformation("New scheduled job added: {name}", key);
+                _logger.LogInformation("New job added: {name}", key);
             }
 
             // Update any currently running jobs that have changed.
@@ -171,11 +157,7 @@ namespace Stint
                     continue;
                 }
 
-                //Note: this looks like a resolution root?
-                var logger = _serviceProvider.GetRequiredService<ILogger<ScheduledJobRunner>>();
-                var anchorStore = GetAnchorStore(key);
-                var changeTokenProducer = GetChangeTokenProducer(key, newConfig, anchorStore, stoppingToken);
-                var jobLifetime = new ScheduledJobRunner(key, newConfig, GetAnchorStore(key), logger, scopeFactory, changeTokenProducer);
+                var jobLifetime = _jobRunnerFactory.CreateJobRunner(key, newConfig, stoppingToken);
                 var started = jobLifetime.RunAsync(stoppingToken);
                 jobTasks.Add(started);
                 _jobs.Add(key, jobLifetime);
@@ -217,79 +199,6 @@ namespace Stint
                 oldTask.Dispose();
                 _logger.LogInformation("Disposed of old completed task.");
             }
-        }
-
-        private IAnchorStore GetAnchorStore(string name) => _anchorStoreFactory.GetAnchorStore(name);
-
-        /// <summary>
-        /// Build an <see cref="IChangeTokenProducer"/> for a job that will produce <see cref="IChangeToken"/>'s that will be signalled when the job needs to be executed.
-        /// </summary>
-        /// <param name="jobName"></param>
-        /// <param name="jobConfig"></param>
-        /// <param name="anchorStore"></param>
-        /// <param name="cancellationToken"></param>
-        /// <returns></returns>
-        public IChangeTokenProducer GetChangeTokenProducer(string jobName, ScheduledJobConfig jobConfig,
-            IAnchorStore anchorStore,
-            CancellationToken cancellationToken)
-        {
-            // TODO: Valid cron expression should be parsed and passed in as dependency. rather that doing this here.
-            // If its wrong the job should not be created.
-            var expression = CronExpression.Parse(jobConfig.Schedule);
-            DateTime? lastReturnedAnchor = null;
-
-            var tokenProducer = new ChangeTokenProducerBuilder()
-                .IncludeDatetimeScheduledTokenProducer(async () =>
-                {
-                    // This token producer will signal tokens at the specified datetime. Will calculate the next datetime a job should run based on looking at when it last ran, and its schedule etc.
-                    var previousOccurrence = await anchorStore.GetAnchorAsync(cancellationToken);
-                    lastReturnedAnchor = previousOccurrence;
-                    if (previousOccurrence == null)
-                    {
-                        _logger.LogInformation("Job has not previously run");
-                    }
-
-                    var fromWhenShouldItNextRun =
-                        previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
-
-                    var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
-                    _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
-                    return nextOccurence;
-                }, cancellationToken,
-                () => _logger.LogWarning("Mo more occurrences for job."),
-                (delayMs) => _logger.LogInformation("Will delay for {delayMs} ms.", delayMs))
-                .Build()
-                .AndResourceAcquired(async () =>
-                {
-                    var aquiredLock = await _lockProvider.TryAcquireAsync(jobName);
-                    if (aquiredLock == null)
-                    {
-                        // if lock cannot be aquired, delay for atleast a minute to prevent further attempts within this period - as
-                        // // inner token may be singalled and without this delay, this token provider would immeidately re-attempt.
-                        await Task.Delay(TimeSpan.FromMinutes(1));
-                    }
-                    return aquiredLock;
-                }, // omit signal if lock cannot be acquired.
-                    () => _logger.LogInformation("Job {JobName} was not triggered as lock could not be obtained, another instance may already be running.", jobName))
-                .Build()
-                .AndTrueAsync(async () => // omit signal if this delegate check does not return true.
-                {
-                    var latestAnchor = await anchorStore.GetAnchorAsync(cancellationToken);
-                    if (latestAnchor == lastReturnedAnchor)
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }, () =>
-                {
-                    _logger.LogInformation("Job anchor has changed, perhaps job executed by another process.");
-                })
-                .Build();
-
-            return tokenProducer;
         }
 
         public override void Dispose()

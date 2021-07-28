@@ -7,21 +7,24 @@ namespace Stint
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
+    using Stint.PubSub;
 
-    public class ScheduledJobRunner : IDisposable
+    public class JobRunner : IJobRunner
     {
         private readonly IAnchorStore _anchorStore;
-        private readonly ILogger<ScheduledJobRunner> _logger;
+        private readonly ILogger<JobRunner> _logger;
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
+        private readonly IPublisher<JobCompletedEventArgs> _publisher;
 
-        public ScheduledJobRunner(
+        public JobRunner(
                 string name,
-                ScheduledJobConfig config,
+                JobConfig config,
                 IAnchorStore anchorStore,
-                ILogger<ScheduledJobRunner> logger,
+                ILogger<JobRunner> logger,
                 IServiceScopeFactory serviceScopeFactory,
-                IChangeTokenProducer changeTokenProducer
+                IChangeTokenProducer changeTokenProducer,
+                IPublisher<JobCompletedEventArgs> publisher
             )
         {
             Name = name;
@@ -30,11 +33,12 @@ namespace Stint
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
             _changeTokenProducer = changeTokenProducer;
+            _publisher = publisher;
         }
 
-        public CancellationTokenSource CancellationTokenSource { get; set; }
+        private CancellationTokenSource CancellationTokenSource { get; set; }
         public string Name { get; }
-        public ScheduledJobConfig Config { get; }
+        public JobConfig Config { get; }
         public void Dispose()
         {
             CancellationTokenSource?.Cancel();
@@ -47,10 +51,10 @@ namespace Stint
             // Subscribing to a change token producer, signalled by a scheduled trigger.
 
             CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            return RunToScheduleAsync(CancellationTokenSource.Token);
+            return ExecuteWhenSignalledAsync(CancellationTokenSource.Token);
         }
 
-        public async Task RunToScheduleAsync(CancellationToken token)
+        private async Task ExecuteWhenSignalledAsync(CancellationToken token)
         {
             // DateTime? previousOccurrence = null;         
 
@@ -66,8 +70,10 @@ namespace Stint
                 var jobInfo = new ExecutionInfo(Name);
 
                 // TODO: Add options for retrying when failure.
-                await ExecuteScheduledJob(Config.Type, jobInfo, token);
+                await ExecuteJob(Config.Type, jobInfo, token);
                 var newAnchor = await _anchorStore.DropAnchorAsync(token);
+
+                _publisher.Publish(this, new JobCompletedEventArgs(this.Name));
                 // wait atelast one second before running again.
                 await Task.Delay(1000);
 
@@ -76,9 +82,9 @@ namespace Stint
             _logger.LogInformation("Job cancelled");
         }
 
-        public bool Disabled { get; set; } = false;
+        private bool Disabled { get; set; } = false;
 
-        protected virtual async Task ExecuteScheduledJob(string jobTypeName, ExecutionInfo runInfo, CancellationToken token)
+        protected virtual async Task ExecuteJob(string jobTypeName, ExecutionInfo runInfo, CancellationToken token)
         {
             using (var scope = _serviceScopeFactory.CreateScope())
             {

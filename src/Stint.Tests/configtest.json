@@ -1,0 +1,39 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "Scheduler": {
+    "Jobs": {
+      "TestJob": {
+        "Type": "MyCoolJob",
+        "Triggers": {
+          "Schedules": [
+            {
+              "Schedule": "* * * * *"
+            }
+          ],
+          "JobCompletions": [
+            {
+              "JobName": "AnotherTestJob"
+            }
+          ]
+        }
+      },
+      "AnotherTestJob": {
+        "Type": "MyCoolJob",
+        "Triggers": {
+          "Schedules": [
+            {
+              "Schedule": "* * * * *"
+            }
+          ],
+          "Manual":  true
+        }
+      }
+    }
+  }
+}

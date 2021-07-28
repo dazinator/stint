@@ -59,7 +59,7 @@ Note: You can use DI as usual for injecting dependencies into job classes.
   Next configure your job instances, and their triggers.
   This uses the standard `IOptions` pattern, so you can bind the config from `Json` config, pre or post configure hooks, or any other sources that support this pattern.
     
-  ```
+  ```csharp
   services.Configure<JobsConfig>((config) =>
                     {                     
                         config.Jobs.Add("TestJob", new JobConfig()
@@ -95,7 +95,7 @@ Note: You can use DI as usual for injecting dependencies into job classes.
 
  To allow manually triggering a job, you have to enable the `Manual` trigger:
 
- ```
+ ```csharp
   config.Jobs.Add("TestChainedJob", new JobConfig()
                         {
                             Type = nameof(TestJob),
@@ -206,7 +206,7 @@ If you run multiple instances of the job runner application, you'll want to conf
 
 Implement this interface to use whatever distributed lock mechanism you want:
 
-```
+```csharp
     public interface ILockProvider
     {
         Task<IDisposable> TryAcquireAsync(string name);

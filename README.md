@@ -154,7 +154,7 @@ If you want to bind the scheduler jobs to a json config file, you'll json will n
 ```
 
 - Jobs have unique names - i.e "AnotherTestJob", "DifferentJob" etc as shown above.
-- Each job has a "Type" which is a name that maps to a specific registered job class in the code - i.e "MyCoolJob", "MyOtherCoolJob" as shown above.
+- Each job has a "Type" which is a name that maps to a specific registered job class in the code - i.e "MyCoolJob" as shown above.
   This tells the job runner which job class to execute for this job.
 - Each job has a `Triggers` section where different kinds of triggers can be configured for the job.
 - You can change the configuration whilst the application is running and the scheduler will reload / reconfigure any necessary jobs in memory as necessary to reflect latest configuration. If a jobs configuration is updated and it is currently executing, it will be signalled for cancellation.

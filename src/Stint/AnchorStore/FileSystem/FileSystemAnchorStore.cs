@@ -34,8 +34,8 @@ namespace Stint
                     //   // var anchorText = await File.ReadAllTextAsync(path, token,);
                     using (var outputFile = new StreamReader(path, true))
                     {
-                        var anchorText = await outputFile.ReadToEndAsync();                       
-                        if(!DateTime.TryParse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
+                        var anchorText = await outputFile.ReadToEndAsync();
+                        if (!DateTime.TryParse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
                         {
                             _logger.LogWarning("Anchor file {path} did not contain valid datetime. Returning null anchor.", path);
                             return null;

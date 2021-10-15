@@ -81,8 +81,8 @@ namespace Stint
             catch (Exception e)
             {
                 _logger.LogError(e, "Unable to write anchor {anchorDateText} to file: {path}", anchorDateText, path);
-                throw;              
-            }       
+                throw;
+            }
         }
     }
 }

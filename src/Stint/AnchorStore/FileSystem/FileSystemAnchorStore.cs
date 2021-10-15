@@ -46,10 +46,21 @@ namespace Stint
             var anchorDateText = anchor.ToString("O");
 
             _logger.LogDebug("Writing anchor {anchorDateTime} to anchor file: {path}", anchorDateText, path);
-            await File.WriteAllTextAsync(path, anchorDateText, token);
+
+            // seeing odd issues with async io on linux writing to cifs share- empty file is left orphaned.
+            // so switching to sync io, with async writes to the stream.
+
+            // https://github.com/dotnet/runtime/issues/23196
+            // await File.WriteAllTextAsync(path, anchorDateText, token);
+
+            using (var outputFile = new StreamWriter(path, false))
+            {
+                await outputFile.WriteAsync(anchorDateText.AsMemory(), token);
+            }
+
             _logger.LogDebug("Anchor {anchorDateText} successfully written to anchor file: {path}", anchorDateText, path);
 
             return anchor;
-        }
+        }     
     }
 }

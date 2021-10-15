@@ -28,7 +28,7 @@ namespace Stint
             if (File.Exists(path))
             {
                 try
-                {                   
+                {
 
                     // seems to be not working on linux with cifs file share
                     //   // var anchorText = await File.ReadAllTextAsync(path, token,);
@@ -36,10 +36,10 @@ namespace Stint
                     using (var outputFile = new StreamReader(path, true))
                     {
                         var anchorText = await outputFile.ReadToEndAsync();
-                        var anchorDateTime =DateTime.Parse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+                        var anchorDateTime = DateTime.Parse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
                         _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", anchorDateTime, path);
                         return anchorDateTime;
-                    }                                
+                    }
                 }
                 catch (Exception e)
                 {

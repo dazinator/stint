@@ -27,12 +27,26 @@ namespace Stint
 
             if (File.Exists(path))
             {
-                var anchorText = await File.ReadAllTextAsync(path, token);
-                var anchorDateTime =
-                    DateTime.Parse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+                try
+                {                   
 
-                _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", anchorDateTime, path);
-                return anchorDateTime;
+                    // seems to be not working on linux with cifs file share
+                    //   // var anchorText = await File.ReadAllTextAsync(path, token,);
+
+                    using (var outputFile = new StreamReader(path, true))
+                    {
+                        var anchorText = await outputFile.ReadToEndAsync();
+                        var anchorDateTime =DateTime.Parse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+                        _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", anchorDateTime, path);
+                        return anchorDateTime;
+                    }                                
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Unable to read contents of anchor file: {path}", path);
+                    throw;
+                }
+
             }
 
             _logger.LogDebug("No anchor file exists at {path}, returning null anchor.", path);
@@ -61,6 +75,6 @@ namespace Stint
             _logger.LogDebug("Anchor {anchorDateText} successfully written to anchor file: {path}", anchorDateText, path);
 
             return anchor;
-        }     
+        }
     }
 }

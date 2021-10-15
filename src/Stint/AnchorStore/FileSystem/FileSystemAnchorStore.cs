@@ -61,6 +61,6 @@ namespace Stint
             _logger.LogDebug("Anchor {anchorDateText} successfully written to anchor file: {path}", anchorDateText, path);
 
             return anchor;
-        }     
+        }
     }
 }

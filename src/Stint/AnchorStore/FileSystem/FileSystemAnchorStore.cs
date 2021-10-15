@@ -53,7 +53,7 @@ namespace Stint
             return null;
         }
 
-        public async Task<DateTime> DropAnchorAsync(CancellationToken token)
+        public Task<DateTime> DropAnchorAsync(CancellationToken token)
         {
             var path = Path.Combine(_contentPath, _name + "-anchor.txt");
             var anchor = DateTime.UtcNow;
@@ -67,14 +67,22 @@ namespace Stint
             // https://github.com/dotnet/runtime/issues/23196
             // await File.WriteAllTextAsync(path, anchorDateText, token);
 
-            using (var outputFile = new StreamWriter(path, false))
+            try
             {
-                await outputFile.WriteAsync(anchorDateText.AsMemory(), token);
+                using (var outputFile = new StreamWriter(path, false))
+                {
+                    outputFile.Write(anchorDateText);
+                    outputFile.Flush();
+                }
+
+                _logger.LogDebug("Anchor {anchorDateText} successfully written to anchor file: {path}", anchorDateText, path);
+                return Task.FromResult(anchor);
             }
-
-            _logger.LogDebug("Anchor {anchorDateText} successfully written to anchor file: {path}", anchorDateText, path);
-
-            return anchor;
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to write anchor {anchorDateText} to file: {path}", anchorDateText, path);
+                throw;              
+            }       
         }
     }
 }

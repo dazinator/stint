@@ -32,13 +32,17 @@ namespace Stint
 
                     // seems to be not working on linux with cifs file share
                     //   // var anchorText = await File.ReadAllTextAsync(path, token,);
-
                     using (var outputFile = new StreamReader(path, true))
                     {
-                        var anchorText = await outputFile.ReadToEndAsync();
-                        var anchorDateTime = DateTime.Parse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-                        _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", anchorDateTime, path);
-                        return anchorDateTime;
+                        var anchorText = await outputFile.ReadToEndAsync();                       
+                        if(!DateTime.TryParse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
+                        {
+                            _logger.LogWarning("Anchor file {path} did not contain valid datetime. Returning null anchor.", path);
+                            return null;
+                        }
+
+                        _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", result, path);
+                        return result;
                     }
                 }
                 catch (Exception e)
@@ -69,10 +73,13 @@ namespace Stint
 
             try
             {
-                using (var outputFile = new StreamWriter(path, false))
+                // https://github.com/dotnet/runtime/issues/42790#issuecomment-700362617
+                using (var outputFile = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
                 {
-                    outputFile.Write(anchorDateText);
-                    outputFile.Flush();
+                    using (var writer = new StreamWriter(outputFile))
+                    {
+                        writer.Write(anchorDateText);
+                    }
                 }
 
                 _logger.LogDebug("Anchor {anchorDateText} successfully written to anchor file: {path}", anchorDateText, path);
@@ -81,8 +88,8 @@ namespace Stint
             catch (Exception e)
             {
                 _logger.LogError(e, "Unable to write anchor {anchorDateText} to file: {path}", anchorDateText, path);
-                throw;              
-            }       
+                throw;
+            }
         }
     }
 }

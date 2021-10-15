@@ -4,6 +4,7 @@ namespace Stint
     using Dazinator.Extensions.DependencyInjection;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
 
     public class StintServicesBuilder
     {
@@ -18,7 +19,11 @@ namespace Stint
         /// <returns></returns>
         public StintServicesBuilder AddFileSystemAnchorStore(string basePath)
         {
-            Services.AddSingleton<IAnchorStoreFactory, FileSystemAnchorStoreFactory>((sp) => new FileSystemAnchorStoreFactory(basePath));
+            Services.AddSingleton<IAnchorStoreFactory, FileSystemAnchorStoreFactory>((sp) =>
+            {
+                var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+                return new FileSystemAnchorStoreFactory(basePath, loggerFactory);
+            });
             return this;
         }
 
@@ -32,7 +37,8 @@ namespace Stint
             Services.AddSingleton<IAnchorStoreFactory, FileSystemAnchorStoreFactory>((sp) =>
             {
                 var env = sp.GetRequiredService<IHostEnvironment>();
-                return new FileSystemAnchorStoreFactory(env.ContentRootPath);
+                var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+                return new FileSystemAnchorStoreFactory(env.ContentRootPath, loggerFactory);
             });
             return this;
         }

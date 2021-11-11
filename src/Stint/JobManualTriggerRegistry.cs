@@ -9,6 +9,7 @@ namespace Stint
 
         public bool TryGetTrigger(string jobName, out Action trigger) => _jobTriggerDelegates.TryGetValue(jobName, out trigger);
 
-        public void AddUpdateTrigger(string jobName, Action trigger) => _ = _jobTriggerDelegates.AddOrUpdate(jobName, trigger, (a, b) => b);
+        public void AddUpdateTrigger(string jobName, Action trigger) => _ = _jobTriggerDelegates.AddOrUpdate(jobName, trigger, (key, oldValue) => trigger);
+
     }
 }

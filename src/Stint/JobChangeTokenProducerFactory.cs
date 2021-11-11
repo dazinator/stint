@@ -44,6 +44,7 @@ namespace Stint
             JobConfig jobConfig,
             CancellationToken cancellationToken)
         {
+            _logger.LogDebug("Building change token for job: {jobname}", jobName);
             var anchorStore = GetAnchorStore(jobName);
 
             var tokenProducerBuilder = new ChangeTokenProducerBuilder();
@@ -53,8 +54,10 @@ namespace Stint
             Task<DateTime?> lastAnchorTask = null;
 
             // Include a producer that just captures a snapshot of the current anchor when a change token is requested.
+            // this is so we can double check is hasn't been modified within the lock.
             tokenProducerBuilder.Include(() =>
             {
+                _logger.LogDebug("Getting snapshot of anchor for {jobname}", jobName);
                 lastAnchorTask = anchorStore.GetAnchorAsync(cancellationToken);
                 return EmptyChangeToken.Instance;
             });
@@ -74,18 +77,18 @@ namespace Stint
                         //  lastReturnedAnchor = previousOccurrence;
                         if (previousOccurrence == null)
                         {
-                            _logger.LogInformation("Job has not previously run");
+                            _logger.LogInformation("Job {jobname} has not previously run", jobName);
                         }
 
                         var fromWhenShouldItNextRun =
                             previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
 
                         var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
-                        _logger.LogInformation("Next occurrence {nextOccurence}", nextOccurence);
+                        _logger.LogInformation("Next occurrence of {jobname} is @ {nextOccurence}", jobName, nextOccurence);
                         return nextOccurence;
                     }, cancellationToken,
-                    () => _logger.LogWarning("Mo more occurrences for job."),
-                    (delayMs) => _logger.LogDebug("Will delay for {delayMs} ms.", delayMs));
+                    () => _logger.LogWarning("Mo more occurrences for job {jobName}", jobName),
+                    (delayMs) => _logger.LogDebug("Will delay for {delayMs} ms to execute {jobName}.", delayMs, jobName));
                 }
             }
 
@@ -123,7 +126,7 @@ namespace Stint
                  if (aquiredLock == null)
                  {
                      // if lock cannot be aquired, delay for atleast a minute to prevent further attempts within this period - as
-                     // // inner token may be singalled and without this delay, this token provider would immeidately re-attempt.
+                     // // inner token may be singalled and without this delay, the consumer may immediately re-attempt.
                      await Task.Delay(TimeSpan.FromMinutes(1));
                  }
                  return aquiredLock;

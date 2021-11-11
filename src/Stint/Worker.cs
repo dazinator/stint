@@ -213,6 +213,7 @@ namespace Stint
 
         private void StopJobs()
         {
+            _logger.LogInformation("Worker stopping jobs.");
             StopListeningForJobConfigChanges();
             if (!_cts.IsCancellationRequested)
             {

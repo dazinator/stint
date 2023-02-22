@@ -49,6 +49,7 @@ jobs:
           Co-authored-by: ${{ github.event.comment.user.login }} <${{ github.event.comment.user.id }}+${{ github.event.comment.user.login }}@users.noreply.github.com>'
       
       - name: Push changes
+        if: steps.changes.outputs.changed == 1
         #if: steps.command.outputs.command-name && steps.command.outputs.command-arguments == 'format' && steps.format.outputs.has-changes == 'true'
         uses: ad-m/github-push-action@v0.5.0
         with:

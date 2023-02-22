@@ -37,7 +37,7 @@ jobs:
 
       - name: Configure git safe dir
         run: |
-          git config --global --add safe.directory /github/workspace
+          git config --local --add safe.directory /github/workspace         
 
       - name: Commit files
         if: steps.changes.outputs.changed == 1

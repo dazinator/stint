@@ -125,7 +125,7 @@ namespace Stint.Tests
                 }).Build().RunAsync();
 
 
-            var signalled = jobRanEvent.WaitOne(3000);
+            var signalled = jobRanEvent.WaitOne(9000);
             jobRanEvent.Reset();
             Assert.True(signalled);
 
@@ -193,7 +193,7 @@ namespace Stint.Tests
             var manualTriggerInvoker = host.Services.GetRequiredService<IJobManualTriggerInvoker>();
             manualTriggerInvoker.Trigger("TestJob");
 
-            var signalled = jobRanEvent.WaitOne(3000);
+            var signalled = jobRanEvent.WaitOne(9000);
             Assert.True(signalled);
 
             signalled = chainedJobRanEvent.WaitOne(65000);

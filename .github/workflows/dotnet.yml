@@ -51,7 +51,8 @@ jobs:
       - name: Push changes
         if: steps.changes.outputs.changed == 1
         #if: steps.command.outputs.command-name && steps.command.outputs.command-arguments == 'format' && steps.format.outputs.has-changes == 'true'
-        uses: ad-m/github-push-action@v0.5.0
+        uses: ad-m/github-push-action@master
+        #ad-m/github-push-action@v0.5.0
         with:
           branch: ${{ github.ref }}         
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -62,7 +63,7 @@ jobs:
       GitVersion.SemVer:
     steps:    
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
 

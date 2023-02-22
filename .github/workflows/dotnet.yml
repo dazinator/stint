@@ -35,10 +35,13 @@ jobs:
         id: changes
         uses: UnicornGlobal/has-changes-action@v1.0.11
 
-      - name: Commit files
-        if: steps.changes.outputs.changed == 1
+      - name: Configure git safe dir
         run: |
           git config --global --add safe.directory /github/workspace
+
+      - name: Commit files
+        if: steps.changes.outputs.changed == 1
+        run: |         
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -a -m 'Automated dotnet-format update

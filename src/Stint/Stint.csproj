@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <UserSecretsId>stint-Scheduler-E8179A4C-7A71-4C4D-A098-61C34BA1CD42</UserSecretsId>
     <PackageName>Stint.Scheduler</PackageName>
     <LangVersion>9</LangVersion>

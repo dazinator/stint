@@ -2,9 +2,11 @@ namespace Stint.Tests
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using Cronos;
     using Dazinator.Extensions.DependencyInjection;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
@@ -196,6 +198,28 @@ namespace Stint.Tests
 
             signalled = chainedJobRanEvent.WaitOne(65000);
             Assert.True(signalled);
+
+        }
+
+        [Theory]
+        [InlineData("* * * * *", "23/01/2023 11:00", "23/01/2023 11:01")]
+        [InlineData("*/10 7-9 * * *", "23/01/2023 07:10", "23/01/2023 07:20")] // 07:00 - 09:59 UTC – every 10 mins
+        [InlineData("*/10 7-9 * * *", "23/01/2023 10:00", "24/01/2023 07:00")] // 07:00 - 09:59 UTC – every 10 mins - next occurrence tomorrow.
+        [InlineData("*/30 10-13 * * *", "23/01/2023 10:10", "23/01/2023 10:30")]  // 10:00 - 13:59 UTC – every 30 mins
+        [InlineData("*/10 14 * * *", "23/01/2023 14:00", "23/01/2023 14:10")]   // 14:00 - 14:59 UTC – every 10 mins
+        public void Can_Use_Cron_Expression(string cron, string lastOccurrencUtc, string expectedNextOccurrenceUtc)
+        {
+            var expression = CronExpression.Parse(cron);
+
+            var lastOccurrenceDateTime = DateTime.ParseExact(lastOccurrencUtc, "dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture).ToUniversalTime();
+
+            var expectedNextOccurrenceDateTime = DateTime.ParseExact(expectedNextOccurrenceUtc, "dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+
+
+            // var fromWhenShouldItNextRun = DateTime.UtcNow; 
+            var nextOccurence = expression.GetNextOccurrence(lastOccurrenceDateTime);
+
+            Assert.Equal(expectedNextOccurrenceDateTime, nextOccurence);
 
         }
 

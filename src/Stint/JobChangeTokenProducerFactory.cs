@@ -84,7 +84,7 @@ namespace Stint
                             previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
 
                         var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
-                        _logger.LogInformation("Next occurrence of {jobname} is @ {nextOccurence}", jobName, nextOccurence);
+                        _logger.LogInformation("Next occurrence of {jobname} is @ {nextOccurence} using cron {cronSchedule}", jobName, nextOccurence, scheduleTriggerConfig.Schedule);
                         return nextOccurence;
                     }, cancellationToken,
                     () => _logger.LogWarning("Mo more occurrences for job {jobName}", jobName),

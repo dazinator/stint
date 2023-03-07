@@ -1,7 +1,7 @@
-using Microsoft.Extensions.Logging;
-
-namespace Stint
+namespace Stint.Triggers.ManualInvoke
 {
+    using Microsoft.Extensions.Logging;
+
     public class JobManualTriggerInvoker : IJobManualTriggerInvoker
     {
         private readonly ILogger<JobManualTriggerInvoker> _logger;

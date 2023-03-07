@@ -1,4 +1,4 @@
-namespace Stint
+namespace Stint.Triggers.ManualInvoke
 {
     public interface IJobManualTriggerInvoker
     {

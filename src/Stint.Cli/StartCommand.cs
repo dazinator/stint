@@ -11,9 +11,6 @@ namespace Stint.Cli
         private const string CommandName = "start";
 
         public StartCommand(Func<Task<int>> startAysncCallback) : base(CommandName) =>
-            Handler = CommandHandler.Create(async () =>
-            {
-                await startAysncCallback();
-            });
+            Handler = CommandHandler.Create(async () => await startAysncCallback());
     }
 }

@@ -50,10 +50,7 @@ namespace Stint.Tests
             var changeTokenProducer = sut.GetChangeTokenProducer("TestJob", jobConfig, default);
             // changeTokenProducer.Produce()
             var token = changeTokenProducer.Produce();
-            var listening = token.RegisterChangeCallback((s) =>
-            {
-                jobRanEvent.Set();
-            }, null);
+            var listening = token.RegisterChangeCallback((s) => jobRanEvent.Set(), null);
 
             var signalled = jobRanEvent.WaitOne(62000);
             Assert.True(signalled);

@@ -40,14 +40,16 @@ namespace Stint.Cli
         public void ReloadDaemon()
         {
             // systemctl daemon-reload
-            var startInfo = new ProcessStartInfo();
-            startInfo.FileName = "systemctl";
-            startInfo.Arguments = "daemon-reload";
-            startInfo.UseShellExecute = false;
-            //Set output of program to be written to process output stream
-            startInfo.RedirectStandardOutput = true;
-            //Optional
-            startInfo.WorkingDirectory = Environment.CurrentDirectory;
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "systemctl",
+                Arguments = "daemon-reload",
+                UseShellExecute = false,
+                //Set output of program to be written to process output stream
+                RedirectStandardOutput = true,
+                //Optional
+                WorkingDirectory = Environment.CurrentDirectory
+            };
 
             using (var process = Process.Start(startInfo))
             {

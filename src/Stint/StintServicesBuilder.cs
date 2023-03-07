@@ -88,5 +88,6 @@ namespace Stint
             registerJobTypes?.Invoke(builder);
             return this;
         }
+
     }
 }

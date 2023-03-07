@@ -1,7 +1,7 @@
-using System;
-
 namespace Stint.PubSub
 {
+    using System;
+
     public interface ISubscriber<TEventArgs>
         where TEventArgs : EventArgs
     {

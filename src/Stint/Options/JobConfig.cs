@@ -19,5 +19,10 @@ namespace Stint
                 obj.Triggers.Equals(this.Triggers);
             return equal;
         }
+
+        public override int GetHashCode()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

@@ -1,34 +1,34 @@
 namespace Stint
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
+    using System.Reflection.Metadata.Ecma335;
     using System.Threading;
     using System.Threading.Tasks;
-    using Cronos;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
-    using Stint.PubSub;
+    using Stint.Triggers;
+
     public class JobChangeTokenProducerFactory : IJobChangeTokenProducerFactory
     {
 
         private readonly ILogger<JobChangeTokenProducerFactory> _logger;
         private readonly IAnchorStoreFactory _anchorStoreFactory;
         private readonly ILockProvider _lockProvider;
-        private readonly IJobManualTriggerRegistry _manualTriggers;
-        private readonly ISubscriber<JobCompletedEventArgs> _subscriber;
+        private readonly ITriggerProvider[] _triggerProviders;
 
         public JobChangeTokenProducerFactory(
             ILogger<JobChangeTokenProducerFactory> logger,
             IAnchorStoreFactory anchorStoreFactory,
             ILockProvider lockProvider,
-            IJobManualTriggerRegistry triggers,
-            ISubscriber<JobCompletedEventArgs> subscriber)
+
+            IEnumerable<ITriggerProvider> triggerProviders)
         {
             _logger = logger;
             _anchorStoreFactory = anchorStoreFactory;
             _lockProvider = lockProvider;
-            _manualTriggers = triggers;
-            _subscriber = subscriber;
+            _triggerProviders = triggerProviders?.ToArray();
         }
 
         /// <summary>
@@ -52,6 +52,7 @@ namespace Stint
             //DateTime? lastReturnedAnchor = null;
 
             Task<DateTime?> lastAnchorTask = null;
+            Func<Task<DateTime?>> getLastAnchorTaskFactory = () => lastAnchorTask;
 
             // Include a producer that just captures a snapshot of the current anchor when a change token is requested.
             // this is so we can double check is hasn't been modified within the lock.
@@ -62,62 +63,13 @@ namespace Stint
                 return EmptyChangeToken.Instance;
             });
 
-            var scheduleTriggerConfigs = jobConfig.Triggers?.Schedules;
-            if (scheduleTriggerConfigs?.Any() ?? false)
+            // allow trigger providers to include their own ChangeToken's in the composite.
+            // trigger providers is an extension point, so that we can support novel ways of triggering jobs.
+            // examples are: Schedule (e.g cron) and Manual invoke.
+            foreach (var triggerProvider in _triggerProviders)
             {
-                foreach (var scheduleTriggerConfig in scheduleTriggerConfigs)
-                {
-                    var expression = CronExpression.Parse(scheduleTriggerConfig.Schedule);
-                    tokenProducerBuilder.IncludeDatetimeScheduledTokenProducer(async () =>
-                    {
-                        // This token producer will signal tokens at the specified datetime. Will calculate the next datetime a job should run based on looking at when it last ran, and its schedule etc.
-                        var previousOccurrence = await lastAnchorTask;
-
-                        //  await anchorStore.GetAnchorAsync(cancellationToken);
-                        //  lastReturnedAnchor = previousOccurrence;
-                        if (previousOccurrence == null)
-                        {
-                            _logger.LogInformation("Job {jobname} has not previously run", jobName);
-                        }
-
-                        var fromWhenShouldItNextRun =
-                            previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
-
-                        var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
-                        _logger.LogInformation("Next occurrence of {jobname} is @ {nextOccurence} using cron {cronSchedule}", jobName, nextOccurence, scheduleTriggerConfig.Schedule);
-                        return nextOccurence;
-                    }, cancellationToken,
-                    () => _logger.LogWarning("Mo more occurrences for job {jobName}", jobName),
-                    (delayMs) => _logger.LogDebug("Will delay for {delayMs} ms to execute {jobName}.", delayMs, jobName));
-                }
+                triggerProvider.AddTriggerChangeTokens(jobName, jobConfig, getLastAnchorTaskFactory, tokenProducerBuilder, cancellationToken);
             }
-
-            if (jobConfig?.Triggers?.Manual ?? false)
-            {
-                // register a delegate that can trigger this job, by the job name.
-                tokenProducerBuilder.IncludeTrigger(out var triggerDelegate);
-                _manualTriggers.AddUpdateTrigger(jobName, triggerDelegate);
-            }
-
-            // If job is configured to run when other jobs complete,
-            // then subscribe to job completion events, and when an event is received, if the job name that completed
-            // matches the job name that should trigger this job, then invoke the trigger for this job!
-            var onJobCompletedTriggers = jobConfig.Triggers?.JobCompletions;
-            if (onJobCompletedTriggers?.Any() ?? false)
-            {
-                tokenProducerBuilder.IncludeSubscribingHandlerTrigger((trigger) => _subscriber.Subscribe((s, e) =>
-                {
-                    foreach (var jobCompletedTrigger in onJobCompletedTriggers)
-                    {
-                        if (string.Equals(jobCompletedTrigger.JobName, e.Name))
-                        {
-                            trigger?.Invoke();
-                            break;
-                        }
-                    }
-                }));
-            }
-
 
             var tokenProducer = tokenProducerBuilder.Build()
              .AndResourceAcquired(async () =>
@@ -144,10 +96,7 @@ namespace Stint
                  var originalAnchor = await lastAnchorTask;
                  var latestAnchor = await anchorStore.GetAnchorAsync(cancellationToken);
                  return latestAnchor == originalAnchor;
-             }, () =>
-             {
-                 _logger.LogInformation("Job anchor has changed, perhaps job executed by another process.");
-             })
+             }, () => _logger.LogInformation("Job anchor has changed, perhaps job executed by another process."))
              .Build();
 
             return tokenProducer;

@@ -15,7 +15,7 @@ namespace Stint
         public static bool ScrambledEquals<T>(this IEnumerable<T> list1, IEnumerable<T> list2)
         {
             var cnt = new Dictionary<T, int>();
-            foreach (T s in list1)
+            foreach (var s in list1)
             {
                 if (cnt.ContainsKey(s))
                 {
@@ -26,7 +26,7 @@ namespace Stint
                     cnt.Add(s, 1);
                 }
             }
-            foreach (T s in list2)
+            foreach (var s in list2)
             {
                 if (cnt.ContainsKey(s))
                 {

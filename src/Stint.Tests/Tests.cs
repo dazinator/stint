@@ -10,6 +10,7 @@ namespace Stint.Tests
     using Dazinator.Extensions.DependencyInjection;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Stint.Triggers.ManualInvoke;
     using Xunit;
 
     public partial class StintTests

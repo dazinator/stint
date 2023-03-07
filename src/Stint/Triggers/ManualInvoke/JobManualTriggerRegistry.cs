@@ -1,4 +1,4 @@
-namespace Stint
+namespace Stint.Triggers.ManualInvoke
 {
     using System;
     using System.Collections.Concurrent;

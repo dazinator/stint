@@ -1,7 +1,7 @@
-using Microsoft.Extensions.Logging;
-
 namespace Stint
 {
+    using Microsoft.Extensions.Logging;
+
     public class FileSystemAnchorStoreFactory : IAnchorStoreFactory
     {
         private readonly string _basePath;

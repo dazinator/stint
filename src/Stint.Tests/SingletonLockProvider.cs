@@ -9,8 +9,8 @@ namespace Stint
     public class SingletonLockProvider : ILockProvider
     {
         private IDisposable _acquiredLock = null;
-        private object _lock = new object();
-        private Task<IDisposable> _nullLock = Task.FromResult<IDisposable>(null);
+        private readonly object _lock = new object();
+        private readonly Task<IDisposable> _nullLock = Task.FromResult<IDisposable>(null);
 
         public SingletonLockProvider()
         {
@@ -32,11 +32,7 @@ namespace Stint
                     return _nullLock;
                 }
 
-                _acquiredLock = new InvokeOnDispose(() =>
-                {
-                    ReleaseLock();
-                    //  _onLockDisposed();
-                });
+                _acquiredLock = new InvokeOnDispose(() => ReleaseLock());
 
                 return Task.FromResult(_acquiredLock);
             }

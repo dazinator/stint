@@ -1,7 +1,7 @@
-using System;
-
-namespace Stint
+namespace Stint.Triggers.ManualInvoke
 {
+    using System;
+
     public interface IJobManualTriggerRegistry
     {
         void AddUpdateTrigger(string jobName, Action trigger);

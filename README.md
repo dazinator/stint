@@ -12,9 +12,10 @@ Stint allows your existing dotnet application to run jobs.
   - Support locking, so you can implement your own `ILockProvider` to prevent multiple instances of a job from being signalled concurrently when scaling to multiple nodes. Default `ILockProvider` provides a no-op lock.
     
 - triggers
-  - Schedule (cron)
-  - Manual invocation (i.e inject `IJobManualTriggerInvoker` and call `bool Trigger(string jobName)` )
+  - Schedule (i.e provide one or many cron schedules)
+  - Manual Invoke (i.e inject `IJobManualTriggerInvoker` and call `bool Trigger(string jobName)` )
   - JobCompletion (i.e a job can be automatically triggered when another job with the specified name completes)
+  - Can implement your own `ITriggerProvider`s. The above three are good reference implementations.
 
 # Getting Started
 

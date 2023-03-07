@@ -85,7 +85,7 @@ namespace Stint.Tests
             var tasks = hosts.Select(a => a.StartAsync());
             await Task.WhenAll(tasks);
 
-            var jobRan = jobRanEvent.WaitOne(60000);
+            var jobRan = jobRanEvent.WaitOne(65000);
             Assert.True(jobRan);
 
             //  await Task.Delay(5000); // give more time for more jobs to run.

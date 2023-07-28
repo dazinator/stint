@@ -6,12 +6,17 @@ namespace Stint.Tests
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AutoFixture;
     using Cronos;
     using Dazinator.Extensions.DependencyInjection;
+    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Options;
+    using Stint.Docker;
     using Stint.Triggers.ManualInvoke;
     using Xunit;
+    using Xunit.Categories;
 
     public partial class StintTests
     {
@@ -254,6 +259,180 @@ namespace Stint.Tests
             public TestChainedJob(Func<Task> onJobExecuted) => _onJobExecuted = onJobExecuted;
 
             public async Task ExecuteAsync(ExecutionInfo runInfo, CancellationToken token) => await _onJobExecuted();
+        }
+
+        [Exploratory]
+        public async Task Serialise_Docker_ServiceCreateParameters()
+        {
+            // global:Docker.DotNet.DockerClient client = new global:Docker.DotNet.DockerClientConfiguration(new Uri("tcp://"))
+
+            var fixture = new Fixture();
+            var someDto = fixture.Create<global::Docker.DotNet.Models.ServiceCreateParameters>();
+            var json = System.Text.Json.JsonSerializer.Serialize(someDto);
+
+
+            //var swarmServiceCreate = new global::Docker.DotNet.Models.ServiceCreateParameters()
+            //{
+            //    Service = new global::Docker.DotNet.Models.ServiceSpec()
+            //    {
+            //        EndpointSpec = new global::Docker.DotNet.Models.EndpointSpec()
+            //        {
+            //            Ports = new List<global::Docker.DotNet.Models.PortConfig>()
+            //            {
+            //                new global::Docker.DotNet.Models.PortConfig()
+            //                {
+            //                    Protocol = "Tcp",
+            //                    PublishedPort = 80,
+            //                    TargetPort = 80
+            //                }
+            //            }
+            //        },
+            //        Labels = new Dictionary<string, string>()
+            //        {
+            //            { "com.docker.stack.namespace", "test" }
+            //        },
+            //        Mode = new global::Docker.DotNet.Models.ServiceMode()
+            //        {
+            //            ReplicatedJob = new global::Docker.DotNet.Models.ReplicatedJob
+            //            {
+            //                MaxConcurrent = 1,
+            //                TotalCompletions = 1,    
+            //            },                        
+            //        },
+            //        Name = "test",
+            //        Networks = new List<global::Docker.DotNet.Models.NetworkAttachmentConfig>()
+            //        {
+            //            new global::Docker.DotNet.Models.NetworkAttachmentConfig()
+            //            {
+            //                Target = "test",
+            //                Aliases = new List<string>()
+            //                {
+            //                    "test"
+            //                },
+            //                DriverOpts = new Dictionary<string, string>()
+            //                {
+            //                    { "com.docker.network.driver.overlay.vxlanid_list", "4096" }
+            //                }        
+            //            }
+            //        },
+            //        TaskTemplate = new global::Docker.DotNet.Models.TaskSpec()
+            //        {
+            //            ContainerSpec = new global::Docker.DotNet.Models.ContainerSpec()
+            //            {
+            //                Image = "nginx:latest",
+            //                Labels = new Dictionary<string, string>()
+            //                {
+            //                    { "com.docker.stack.namespace", "test" }
+            //                },
+            //                Env = new List<string>()
+            //                {
+            //                    "VIRTUAL_HOST=test",
+            //                    "VIRTUAL_PORT=80"
+            //                },
+            //                Hosts = new List<string>()
+            //                {
+            //                    "test"
+            //                },
+            //                Args = new List<string>()
+            //                {
+            //                    "test"
+            //                },
+            //                CapabilityAdd = new List<string>()
+            //                {
+            //                    "test"
+            //                },
+            //                CapabilityDrop = new List<string>()
+            //                {
+            //                    "test"
+            //                },
+            //                Command = new List<string>()
+            //                {
+            //                    "test"
+            //                },
+            //                DNSConfig = new global::Docker.DotNet.Models.DNSConfig()
+            //                {
+            //                    Nameservers = new List<string>()
+            //                    {
+            //                        "test"
+            //                    },
+            //                    Options = new List<string>()
+            //                    {
+            //                        "test"
+            //                    },
+            //                    Search = new List<string>()
+            //                    {
+            //                        "test"
+            //                    }
+            //                },
+
+
+            //            }
+            //        }
+
+
+            //    }
+            //};
+
+
+            //var swarmClient = new global::Docker.DotNet.DockerClientConfiguration(new Uri("tcp://"))
+            // {
+            //     Service = new Docker.DotNet.Models.ServiceSpec()
+            //     {
+
+
+            //     }
+            // }
+        }
+
+        [Exploratory]
+        [Fact]
+        public async Task Can_Configure_DockerSwarmJob()
+        {
+            var builder = Host.CreateDefaultBuilder()
+                .ConfigureAppConfiguration((hostContext, config) =>
+                {
+                    config.AddJsonFile("swarmjobtest.json");
+                    //config.AddEnvironmentVariables();
+                })
+                .ConfigureServices((hostContext, services) =>
+                {
+                    var config = hostContext.Configuration;
+                    services.Configure<JobsConfig>(config.GetSection("Scheduler"));
+
+                    services.AddScheduledJobs((options) => options.AddLockProviderInstance(new SingletonLockProvider())
+                            .RegisterJobTypes((jobTypes) =>
+                            {
+                                jobTypes.AddTransient<SwarmJob>(nameof(SwarmJob));
+                            }));
+
+                    // configure the swarm services for the swarm jobs
+                    services.ConfigureUponRequest<global::Docker.DotNet.Models.ServiceCreateParameters>().From((name) =>
+                    {
+                        // configure your options for the requested name without having to register this name in advance.
+                        var section = $"Scheduler:Jobs:{name}:Config:ServiceCreateParameters";
+                        return config.GetSection(section);
+                    });
+
+                    // docker client
+                    services.AddSingleton<global::Docker.DotNet.DockerClient>(sp =>
+                    {
+                        var hostAddress = config.GetConnectionString("DockerHost");
+                        global::Docker.DotNet.DockerClientConfiguration dockerConfig = null;
+                        if (string.IsNullOrEmpty(hostAddress))
+                        {
+                            dockerConfig = new global::Docker.DotNet.DockerClientConfiguration();
+                        }
+                        else
+                        {
+                            dockerConfig = new global::Docker.DotNet.DockerClientConfiguration(new Uri(hostAddress), null, default);
+                        }
+                        var client = dockerConfig.CreateClient();
+                        return client;
+                    });
+                });
+
+            await builder.Build().RunAsync();
+
         }
     }
 }

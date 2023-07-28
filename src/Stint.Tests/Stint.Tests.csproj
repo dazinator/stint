@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.1.0" />
     <PackageReference Include="xunit" Version="2.4.1" />
+    <PackageReference Include="xunit.categories" Version="2.0.6" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -17,11 +18,21 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0" />
+    <PackageReference Include="Docker.DotNet" Version="3.125.15" />
+    <PackageReference Include="AutoFixture" Version="4.11.0" />
+    <PackageReference Include="Dazinator.Extensions.Options" Version="0.1.0-alpha.15" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Stint.Cli\Stint.Cli.csproj" />
+    <ProjectReference Include="..\Stint.Docker\Stint.Docker.csproj" />
     <ProjectReference Include="..\Stint\Stint.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="swarmjobtest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

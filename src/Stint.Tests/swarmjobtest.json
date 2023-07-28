@@ -1,0 +1,76 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "Scheduler": {
+    "Jobs": {
+      "TestJob": {
+        "Type": "SwarmJob",
+        "Triggers": {
+          "Schedules": [
+            {
+              "Schedule": "* * * * *"
+            }
+          ]
+        },
+        "Config": {
+          "ServiceCreateParameters": {
+            "Service": {
+              "Name": "MyJob",
+              "Labels": {
+                "foo": "bar"
+              },
+              "TaskTemplate": {
+                "ContainerSpec": {
+                  "Image": "ubuntu",
+                  "Labels": {
+                    "another-label": "bar"
+                  },
+                  "Args": [
+                    "sleep",
+                    "20"
+                  ],
+                  "Hostname": "tenant1",
+                  "Env": [
+                    "foo=bar"
+                  ],
+                  "StopGracePeriod": 1
+                },
+                "Resources": {
+                  "Limits": {
+                    "NanoCPUs": 1000000000,
+                    "MemoryBytes": 1073741824,
+                    "Pids": 40
+                  },
+                  "Reservations": {
+                    "NanoCPUs": 300000000,
+                    "MemoryBytes": 200000000
+                  }
+                },
+                "RestartPolicy": {
+                  "Condition": "on-failure",
+                  "Delay": 10,
+                  "MaxAttempts": 3,
+                  "Window": 5
+                },
+                "Placement": {
+                  "MaxReplicas": 1
+                }
+              },
+              "Mode": {
+                "ReplicatedJob": {
+                  "MaxConcurrent": 1,
+                  "TotalCompletions": 1
+                }
+              }
+            }
+          }        
+        }
+      }
+    }
+  }
+}

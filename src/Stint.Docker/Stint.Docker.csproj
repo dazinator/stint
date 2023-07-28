@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Docker.DotNet" Version="3.125.15" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Stint\Stint.csproj" />
+  </ItemGroup>
+</Project>

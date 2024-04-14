@@ -8,7 +8,7 @@ namespace Stint.Triggers.OnCompleted
     {
         public static StintServicesBuilder AddJobCompletionTriggerProvider(this StintServicesBuilder builder)
         {
-            builder.Services.AddScoped<ITriggerProvider, JobCompletionTriggerProvider>();
+            builder.Services.AddSingleton<ITriggerProvider, JobCompletionTriggerProvider>();
             return builder;
         }
     }

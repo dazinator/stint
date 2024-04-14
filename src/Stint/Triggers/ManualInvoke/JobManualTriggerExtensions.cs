@@ -7,7 +7,7 @@ namespace Stint.Triggers.ManualInvoke
     {
         public static StintServicesBuilder AddManualInvokeTriggerProvider(this StintServicesBuilder builder)
         {
-            builder.Services.AddScoped<ITriggerProvider, ManualInvokeTriggerProvider>();
+            builder.Services.AddSingleton<ITriggerProvider, ManualInvokeTriggerProvider>();
 
             // jobs that can be manually triggered have a trigger callback added to the registry, looked up by job name.
             // the IJobManualTriggerInvoker can then be injected and used to trigger any of these jobs, using the job name as an argument.

@@ -26,7 +26,6 @@ namespace Stint.Triggers.OnCompleted
         public void AddTriggerChangeTokens(
           string jobName,
           JobConfig jobConfig,
-          Func<Task<DateTime?>> lastRanAnchorTaskFactory,
           ChangeTokenProducerBuilder builder,
           CancellationToken cancellationToken)
         {

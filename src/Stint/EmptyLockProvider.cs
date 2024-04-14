@@ -1,6 +1,7 @@
 namespace Stint
 {
     using System;
+    using System.Threading;
     using System.Threading.Tasks;
 
     /// <summary>
@@ -14,6 +15,6 @@ namespace Stint
         {
         }
 
-        public Task<IDisposable> TryAcquireAsync(string name) => _emptyLock;
+        public Task<IDisposable> TryAcquireAsync(string name, CancellationToken cancellationToken) => _emptyLock;
     }
 }

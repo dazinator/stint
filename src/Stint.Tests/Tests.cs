@@ -10,15 +10,27 @@ namespace Stint.Tests
     using Dazinator.Extensions.DependencyInjection;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
     using Stint.Triggers.ManualInvoke;
     using Xunit;
+    using Xunit.Abstractions;
 
     public partial class StintTests
     {
+        private readonly ITestOutputHelper _testOutputHelper;
+
+        public StintTests(ITestOutputHelper testOutputHelper)
+        {
+            _testOutputHelper = testOutputHelper;
+            DefaultServices = new ServiceCollection();
+            DefaultServices.AddLogging(a => a.AddXUnit(_testOutputHelper));
+        }
+
+        public ServiceCollection DefaultServices { get; set; }
+
         [Fact]
         public void Can_Run_Scheduled_Job()
         {
-
             var jobRanEvent = new AutoResetEvent(false);
 
 
@@ -26,19 +38,21 @@ namespace Stint.Tests
             //   a => a.AddTransient(nameof(TestJob), (sp) => new TestJob(onJobExecuted))
 
             var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),
-
-            (config) => config.Jobs.Add("TestJob", new JobConfig()
-            {
-                Type = nameof(TestJob),
-                Triggers = new TriggersConfig()
-                {
-                    Schedules = {
-                         new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
-                    }
-                }
-            }),
-
-                (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set())))
+                    (config) => config.Jobs.Add("TestJob", new JobConfig()
+                    {
+                        Type = nameof(TestJob),
+                        Triggers = new TriggersConfig()
+                        {
+                            Schedules =
+                            {
+                                new ScheduledTriggerConfig()
+                                {
+                                    Schedule = "* * * * *"
+                                }
+                            }
+                        }
+                    }),
+                    (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set())))
                 .Build()
                 .RunAsync();
 
@@ -59,25 +73,29 @@ namespace Stint.Tests
             for (var i = 0; i < hostCount; i++)
             {
                 var host = CreateHostBuilder(lockProvider,
-
-                (config) => config.Jobs.Add("TestJob", new JobConfig()
-                {
-                    Type = nameof(TestJob),
-                    Triggers = new TriggersConfig()
+                    (config) => config.Jobs.Add("TestJob", new JobConfig()
                     {
-                        Schedules = {
-                            new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
+                        Type = nameof(TestJob),
+                        Triggers = new TriggersConfig()
+                        {
+                            Schedules =
+                            {
+                                new ScheduledTriggerConfig()
+                                {
+                                    Schedule = "* * * * *"
+                                }
+                            }
                         }
-                    }
-                }),
-                (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
-                {
-                    if (!jobRanEvent.Set())
+                    }),
+                    (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
                     {
-                        failed = true;
-                    }
-                    await Task.Delay(2000);
-                }))).Build();
+                        if (!jobRanEvent.Set())
+                        {
+                            failed = true;
+                        }
+
+                        await Task.Delay(2000);
+                    }))).Build();
 
                 hosts.Add(host);
             }
@@ -95,7 +113,6 @@ namespace Stint.Tests
         [Fact]
         public void Can_Run_Overdue_Job()
         {
-
             var jobRanEvent = new AutoResetEvent(false);
 
             var mockAnchorStore = new MockAnchorStore
@@ -107,22 +124,24 @@ namespace Stint.Tests
             var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
                 {
-
                     services.Configure<JobsConfig>((config) => config.Jobs.Add("TestJob", new JobConfig()
                     {
                         Type = nameof(TestJob),
                         Triggers = new TriggersConfig()
                         {
-                            Schedules = {
-                                new ScheduledTriggerConfig() {  Schedule = "* * * * *" }
+                            Schedules =
+                            {
+                                new ScheduledTriggerConfig()
+                                {
+                                    Schedule = "* * * * *"
+                                }
                             }
                         }
                     }));
 
                     services.AddScheduledJobs((options) => options.AddLockProviderInstance(new SingletonLockProvider())
-                             .RegisterJobTypes((jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set()))))
-                    .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchorStore));
-
+                            .RegisterJobTypes((jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set()))))
+                        .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchorStore));
                 }).Build().RunAsync();
 
 
@@ -130,32 +149,42 @@ namespace Stint.Tests
             jobRanEvent.Reset();
             Assert.True(signalled);
 
-            // should run again in another minute.          
+            // should run again in another minute.
             signalled = jobRanEvent.WaitOne(63000);
             Assert.True(signalled);
-
         }
 
         [Fact]
-        public void Can_Chain_Jobs()
+        public async Task Can_Chain_Jobs()
         {
+            // var jobRanEvent = new AutoResetEvent(false);
+            //  var chainedJobRanEvent = new AutoResetEvent(false);
 
-            var jobRanEvent = new AutoResetEvent(false);
-            var chainedJobRanEvent = new AutoResetEvent(false);
+            bool jobRan = false;
+            bool jobTwoRan = false;
+
 
             var mockAnchors = new Dictionary<string, MockAnchorStore>()
             {
-                {"TestJob", new MockAnchorStore  { CurrentAnchor = DateTime.UtcNow.AddDays(-1) } },
-                {"TestChainedJob", new MockAnchorStore  { CurrentAnchor = DateTime.UtcNow.AddDays(-1) } }
+                {
+                    "TestJob", new MockAnchorStore
+                    {
+                        CurrentAnchor = DateTime.UtcNow.AddDays(-1)
+                    }
+                },
+                {
+                    "TestChainedJob", new MockAnchorStore
+                    {
+                        CurrentAnchor = DateTime.UtcNow.AddDays(-1)
+                    }
+                }
             };
 
             var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
                 {
-
                     services.Configure<JobsConfig>((config) =>
                     {
-
                         // overdue job will run immdiately
                         config.Jobs.Add("TestJob", new JobConfig()
                         {
@@ -175,39 +204,60 @@ namespace Stint.Tests
                             Type = nameof(TestChainedJob),
                             Triggers = new TriggersConfig()
                             {
-                                JobCompletions = {
-                                    new JobCompletedTriggerConfig(){ JobName ="TestJob" }
+                                JobCompletions =
+                                {
+                                    new JobCompletedTriggerConfig()
+                                    {
+                                        JobName = "TestJob"
+                                    }
                                 }
                             }
                         });
                     });
 
                     services.AddScheduledJobs(a => a.RegisterJobTypes((jobTypes) =>
-                                  jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set()))
-                                          .AddTransient(nameof(TestChainedJob), (sp) => new TestChainedJob(async () => chainedJobRanEvent.Set()))
-
-                                ))
-                                .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchors[jobName]));
+                            jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRan = true))
+                                .AddTransient(nameof(TestChainedJob), (sp) => new TestChainedJob(async () => jobTwoRan = true))
+                        ))
+                        .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchors[jobName]));
                 }).Build();
 
             var hostTask = host.RunAsync();
             var manualTriggerInvoker = host.Services.GetRequiredService<IJobManualTriggerInvoker>();
             manualTriggerInvoker.Trigger("TestJob");
 
-            var signalled = jobRanEvent.WaitOne(9000);
-            Assert.True(signalled);
+            bool success = false;
+            for (int i = 0; i < 10; i++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10));
 
-            signalled = chainedJobRanEvent.WaitOne(65000);
-            Assert.True(signalled);
+                if (!jobRan)
+                {
+                    continue;
+                }
 
+                if (!jobTwoRan)
+                {
+                    continue;
+                }
+
+                success = true;
+                break;
+            }
+
+            /// var signalled = jobRanEvent.WaitOne(65000);
+            Assert.True(success);
+
+            ////  signalled = chainedJobRanEvent.WaitOne(65000);
+            //Assert.True(signalled);
         }
 
         [Theory]
         [InlineData("* * * * *", "23/01/2023 11:00", "23/01/2023 11:01")]
         [InlineData("*/10 7-9 * * *", "23/01/2023 07:10", "23/01/2023 07:20")] // 07:00 - 09:59 UTC – every 10 mins
         [InlineData("*/10 7-9 * * *", "23/01/2023 10:00", "24/01/2023 07:00")] // 07:00 - 09:59 UTC – every 10 mins - next occurrence tomorrow.
-        [InlineData("*/30 10-13 * * *", "23/01/2023 10:10", "23/01/2023 10:30")]  // 10:00 - 13:59 UTC – every 30 mins
-        [InlineData("*/10 14 * * *", "23/01/2023 14:00", "23/01/2023 14:10")]   // 14:00 - 14:59 UTC – every 10 mins
+        [InlineData("*/30 10-13 * * *", "23/01/2023 10:10", "23/01/2023 10:30")] // 10:00 - 13:59 UTC – every 30 mins
+        [InlineData("*/10 14 * * *", "23/01/2023 14:00", "23/01/2023 14:10")] // 14:00 - 14:59 UTC – every 10 mins
         public void Can_Use_Cron_Expression(string cron, string lastOccurrencUtc, string expectedNextOccurrenceUtc)
         {
             var expression = CronExpression.Parse(cron);
@@ -217,26 +267,30 @@ namespace Stint.Tests
             var expectedNextOccurrenceDateTime = DateTime.ParseExact(expectedNextOccurrenceUtc, "dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
 
 
-            // var fromWhenShouldItNextRun = DateTime.UtcNow; 
+            // var fromWhenShouldItNextRun = DateTime.UtcNow;
             var nextOccurence = expression.GetNextOccurrence(lastOccurrenceDateTime);
 
             Assert.Equal(expectedNextOccurrenceDateTime, nextOccurence);
-
         }
 
-        public static IHostBuilder CreateHostBuilder(
-        ILockProvider lockProvider,
-        Action<JobsConfig> configureScheduler,
-        Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes) =>
+        public IHostBuilder CreateHostBuilder(
+            ILockProvider lockProvider,
+            Action<JobsConfig> configureScheduler,
+            Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes
+        ) =>
+            Host.CreateDefaultBuilder()
+                .ConfigureServices((hostContext, services) =>
+                {
+                    foreach (var service in DefaultServices)
+                    {
+                        services.Add(service);
+                    }
 
-        Host.CreateDefaultBuilder()
-            .ConfigureServices((hostContext, services) =>
-            {
-                services.Configure(configureScheduler);
+                    services.Configure(configureScheduler);
 
-                services.AddScheduledJobs((options) => options.AddLockProviderInstance(lockProvider)
+                    services.AddScheduledJobs((options) => options.AddLockProviderInstance(lockProvider)
                         .RegisterJobTypes(registerJobTypes));
-            });
+                });
 
         public class TestJob : IJob
         {

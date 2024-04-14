@@ -7,7 +7,7 @@ namespace Stint.Triggers.Schedule
     {
         public static StintServicesBuilder AddScheduleTriggerProvider(this StintServicesBuilder builder)
         {
-            builder.Services.AddScoped<ITriggerProvider, ScheduleTriggerProvider>();
+            builder.Services.AddSingleton<ITriggerProvider, ScheduleTriggerProvider>();
             return builder;
         }
     }

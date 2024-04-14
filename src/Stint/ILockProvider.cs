@@ -1,10 +1,11 @@
 namespace Stint
 {
     using System;
+    using System.Threading;
     using System.Threading.Tasks;
 
     public interface ILockProvider
     {
-        Task<IDisposable> TryAcquireAsync(string name);
+        Task<IDisposable> TryAcquireAsync(string name, CancellationToken cancellationToken);
     }
 }

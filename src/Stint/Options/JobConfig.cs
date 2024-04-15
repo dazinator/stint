@@ -20,9 +20,6 @@ namespace Stint
             return equal;
         }
 
-        public override int GetHashCode()
-        {
-            throw new NotImplementedException();
-        }
+        public override int GetHashCode() => throw new NotImplementedException();
     }
 }

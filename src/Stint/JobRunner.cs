@@ -3,7 +3,6 @@ namespace Stint
     using System;
     using System.Collections.Generic;
     using System.Threading;
-    using System.Threading.Channels;
     using System.Threading.Tasks;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
@@ -18,9 +17,6 @@ namespace Stint
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
         private readonly IPublisher<JobCompletedEventArgs> _publisher;
-        private IDisposable _changeTokenSubscription;
-
-        private Channel<bool> _workItems = Channel.CreateUnbounded<bool>();
 
         public JobRunner(
             string name,
@@ -53,29 +49,11 @@ namespace Stint
         {
             CancellationTokenSource?.Cancel();
             CancellationTokenSource?.Dispose();
-            _changeTokenSubscription?.Dispose();
         }
 
         public Task RunAsync(CancellationToken cancellationToken)
         {
             CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-            // The issue is that if we don't immediately subscribe to the next change token, if a manual trigger is invoked with no subscriber,
-            // the signalling is lost.
-            // However if we use the below, to immediaately get the next token, then our token provider for the scheduled trigger will immediately fire again, as the schedule trigger is still valid, as we haven't yet run the job.
-
-            // So we don't want to subscribe to change tokens whilst we are running.. (scheduled, and job completion)
-            // but we don't want to miss manual invocations either.
-            // _changeTokenSubscription = ChangeToken.OnChange(() => _changeTokenProducer.Produce(), () =>
-            // {
-            //     // enqueue the work item
-            //     _logger.LogWarning("Consuming next token..");
-            //     if (!_workItems.Writer.TryWrite(true))
-            //     {
-            //         _logger.LogWarning("Failed to enqueue work item.");
-            //     }
-            // });
-
             return ExecuteWhenSignalledAsync(CancellationTokenSource.Token);
         }
 
@@ -113,7 +91,7 @@ namespace Stint
             // Console.WriteLine($"Received: {item}");
             if (token.IsCancellationRequested)
             {
-                _logger.LogDebug("Cancelled..");
+                _logger.LogInformation("Cancelled..");
                 return;
             }
 
@@ -137,10 +115,7 @@ namespace Stint
             }
         }
 
-        private async Task LoadAnchor(CancellationToken token)
-        {
-            Anchor = await _anchorStore.GetAnchorAsync(token);
-        }
+        private async Task LoadAnchor(CancellationToken token) => Anchor = await _anchorStore.GetAnchorAsync(token);
 
         private async Task<bool> ExecuteJobWithinLock(ILockProvider lockProvider, IAnchorStore anchorStore, IPublisher<JobCompletedEventArgs> publisher, CancellationToken token)
         {

@@ -117,7 +117,7 @@ namespace Stint.Tests
                         logger?.LogInformation("Artificial job processing delay..");
                         await Task.Delay(2000);
 
-                        oldIsRunning = Interlocked.CompareExchange(ref isRunningDetection, null,  oldIsRunning);
+                        oldIsRunning = Interlocked.CompareExchange(ref isRunningDetection, null, oldIsRunning);
                         if (oldIsRunning != thisInstance)
                         {
                             logger?.LogInformation("Another instance of the job ran before this one completed..");
@@ -192,8 +192,8 @@ namespace Stint.Tests
         {
             // var jobRanEvent = new AutoResetEvent(false)var chainedJobRanEvent = new AutoResetEvent(false);
 
-            bool jobRan = false;
-            bool jobTwoRan = false;
+            var jobRan = false;
+            var jobTwoRan = false;
 
             var mockAnchors = new Dictionary<string, MockAnchorStore>()
             {

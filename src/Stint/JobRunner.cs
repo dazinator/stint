@@ -3,11 +3,12 @@ namespace Stint
     using System;
     using System.Collections.Generic;
     using System.Threading;
+    using System.Threading.Channels;
     using System.Threading.Tasks;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
-    using Stint.PubSub;
+    using PubSub;
 
     public class JobRunner : IJobRunner
     {
@@ -17,6 +18,9 @@ namespace Stint
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
         private readonly IPublisher<JobCompletedEventArgs> _publisher;
+        private IDisposable _changeTokenSubscription;
+
+        private Channel<bool> _workItems = Channel.CreateUnbounded<bool>();
 
         public JobRunner(
             string name,
@@ -49,11 +53,29 @@ namespace Stint
         {
             CancellationTokenSource?.Cancel();
             CancellationTokenSource?.Dispose();
+            _changeTokenSubscription?.Dispose();
         }
 
         public Task RunAsync(CancellationToken cancellationToken)
         {
             CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            // The issue is that if we don't immediately subscribe to the next change token, if a manual trigger is invoked with no subscriber,
+            // the signalling is lost.
+            // However if we use the below, to immediaately get the next token, then our token provider for the scheduled trigger will immediately fire again, as the schedule trigger is still valid, as we haven't yet run the job.
+
+            // So we don't want to subscribe to change tokens whilst we are running.. (scheduled, and job completion)
+            // but we don't want to miss manual invocations either.
+            // _changeTokenSubscription = ChangeToken.OnChange(() => _changeTokenProducer.Produce(), () =>
+            // {
+            //     // enqueue the work item
+            //     _logger.LogWarning("Consuming next token..");
+            //     if (!_workItems.Writer.TryWrite(true))
+            //     {
+            //         _logger.LogWarning("Failed to enqueue work item.");
+            //     }
+            // });
+
             return ExecuteWhenSignalledAsync(CancellationTokenSource.Token);
         }
 
@@ -67,40 +89,52 @@ namespace Stint
                 },
             });
 
+
+            // get the current version of the anchor.
+            _logger.LogDebug("Loading Anchor..");
+            await LoadAnchor(token);
+
             while (!token.IsCancellationRequested && !Disabled)
             {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(1)); // to prevent tight loop of exceptions in case WaitOneAsync() throws constantly.
+                await _changeTokenProducer.WaitOneAsync(token);
+                await RunJobOnce(token);
 
-                    // get the current version of the anchor.
-                    await LoadAnchor(token);
-
-                    await _changeTokenProducer.WaitOneAsync(token); // wait for a change token to be signalled.
-                    if (token.IsCancellationRequested)
-                    {
-                        continue;
-                    }
-
-                    // run now!
-                    var jobRan = await ExecuteJobWithinLock(_lockProvider, _anchorStore, _publisher, token);
-                    if (!jobRan)
-                    {
-                        // the job could not be run - it is likely already running.
-                        // we should wait for the next signal.
-                        _logger.LogWarning("Job did not execute. Will wait for next signal.");
-                        continue;
-                    }
-
-                    _logger.LogInformation("Job completed.");
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e, "Job errored");
-                }
+                // to prevent tight loop of executions in case WaitOneAsync() throws constantly.
+                // Important: We don't put this before WaitOneAsync because we want the JobRunner to grab a change token asap, so that IJobManualTriggerInvoker can trigger the job.
+                // If we trigger a job before the JobRunner has a change token, the signal will be lost.
+                await Task.Delay(TimeSpan.FromSeconds(2));
             }
 
-            _logger.LogInformation("Job cancelled");
+            _logger.LogWarning("Job runner cancelled.");
+        }
+
+        private async Task RunJobOnce(CancellationToken token)
+        {
+            // Console.WriteLine($"Received: {item}");
+            if (token.IsCancellationRequested)
+            {
+                _logger.LogDebug("Cancelled..");
+                return;
+            }
+
+            try
+            {
+                // run now!
+                var jobRan = await ExecuteJobWithinLock(_lockProvider, _anchorStore, _publisher, token);
+                if (!jobRan)
+                {
+                    // the job could not be run - it is likely already running.
+                    // we should wait for the next signal.
+                    _logger.LogWarning("Job did not execute. Will wait for next signal.");
+                    return;
+                }
+
+                _logger.LogInformation("Job completed.");
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Job errored");
+            }
         }
 
         private async Task LoadAnchor(CancellationToken token)
@@ -127,7 +161,7 @@ namespace Stint
 
             // we now have the lock, but if the anchor has changed since we last loaded it,
             // then we should not run the job as it means the anchor was updated by another instance in between, and so our initial conditions for triggering this job are no longer valid.
-            var isAnchorValid = await CheckIsAnchorValid(token);
+            var isAnchorValid = await CheckAnchorHasNotBeenModified(token);
             if (!isAnchorValid)
             {
                 _logger.LogWarning("Job anchor has changed, perhaps job executed by another process.");
@@ -143,10 +177,12 @@ namespace Stint
             return true;
         }
 
-        private async Task<bool> CheckIsAnchorValid(CancellationToken token)
+        private async Task<bool> CheckAnchorHasNotBeenModified(CancellationToken token)
         {
             var latestAnchor = await _anchorStore.GetAnchorAsync(token);
-            return latestAnchor == Anchor;
+            var isValid = latestAnchor == Anchor;
+            Anchor = latestAnchor;
+            return isValid;
         }
 
         private bool Disabled { get; set; } = false;

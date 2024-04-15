@@ -74,11 +74,15 @@ namespace Stint.Tests
             var hosts = new List<IHost>();
             var lockProvider = new SingletonLockProvider();
             var failed = false;
+            object isRunningDetection = null;
+
 
             for (var i = 0; i < hostCount; i++)
             {
+                ILogger<StintTests> logger = null;
+
                 var host = CreateHostBuilder(lockProvider,
-                    (config) => config.Jobs.Add("TestJob", new JobConfig()
+                    (config) => config.Jobs.Add("TestJobA", new JobConfig()
                     {
                         Type = nameof(TestJob),
                         Triggers = new TriggersConfig()
@@ -94,13 +98,35 @@ namespace Stint.Tests
                     }),
                     (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
                     {
-                        if (!jobRanEvent.Set())
+                        logger?.LogInformation("TestJob Ran");
+                        var thisInstance = new object();
+                        var oldIsRunning = Interlocked.Exchange(ref isRunningDetection, thisInstance);
+                        if (oldIsRunning != null)
                         {
+                            // duplicate running
+                            logger?.LogInformation("Another instance was already running..");
                             failed = true;
                         }
 
+                        if (!jobRanEvent.Set())
+                        {
+                            logger?.LogInformation("Unable to set signal..");
+                            failed = true;
+                        }
+
+                        logger?.LogInformation("Artificial job processing delay..");
                         await Task.Delay(2000);
+
+                        oldIsRunning = Interlocked.CompareExchange(ref isRunningDetection, null,  oldIsRunning);
+                        if (oldIsRunning != thisInstance)
+                        {
+                            logger?.LogInformation("Another instance of the job ran before this one completed..");
+                            // duplicate running
+                            failed = true;
+                        }
                     }))).Build();
+
+                logger = host.Services.GetRequiredService<ILogger<StintTests>>();
 
                 hosts.Add(host);
             }
@@ -111,12 +137,13 @@ namespace Stint.Tests
             var jobRan = jobRanEvent.WaitOne(65000);
             Assert.True(jobRan);
 
-            //  await Task.Delay(5000); // give more time for more jobs to run.
+            //   // give more time for more jobs to run.
+            await Task.Delay(TimeSpan.FromSeconds(30));
             Assert.False(failed);
         }
 
         [Fact]
-        public void Can_Run_Overdue_Job()
+        public async Task Can_Run_Overdue_Job()
         {
             var jobRanEvent = new AutoResetEvent(false);
 
@@ -156,20 +183,17 @@ namespace Stint.Tests
 
             // should run again in another minute.
             signalled = jobRanEvent.WaitOne(63000);
+
             Assert.True(signalled);
         }
 
         [Fact]
         public async Task Can_Chain_Jobs()
         {
-            // var jobRanEvent = new AutoResetEvent(false);
-            //  var chainedJobRanEvent = new AutoResetEvent(false);
+            // var jobRanEvent = new AutoResetEvent(false)var chainedJobRanEvent = new AutoResetEvent(false);
 
             bool jobRan = false;
             bool jobTwoRan = false;
-
-            //var publisher = Substitute.For<ICalculator>();
-
 
             var mockAnchors = new Dictionary<string, MockAnchorStore>()
             {
@@ -186,6 +210,8 @@ namespace Stint.Tests
                     }
                 }
             };
+
+            ILogger<StintTests> logger = null;
 
             var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
@@ -230,42 +256,57 @@ namespace Stint.Tests
                     services.AddScheduledJobs(a => a.RegisterJobTypes((jobTypes) =>
                             jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(() =>
                                 {
+                                    logger?.LogInformation("TestJob Ran");
                                     jobRan = true;
                                     return Task.CompletedTask;
                                 }))
                                 .AddTransient(nameof(TestChainedJob), (sp) => new TestChainedJob(() =>
                                 {
-                                    jobRan = true;
+                                    logger?.LogInformation("TestChainedJob Ran");
+                                    jobTwoRan = true;
                                     return Task.CompletedTask;
                                 }))))
                         .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchors[jobName]));
                 }).Build();
 
-            var hostTask = host.RunAsync();
-            var manualTriggerInvoker = host.Services.GetRequiredService<IJobManualTriggerInvoker>();
-            manualTriggerInvoker.Trigger("TestJob");
+            logger = host.Services.GetRequiredService<ILogger<StintTests>>();
 
-            bool success = false;
-            for (int i = 0; i < 10; i++)
+            var hostCts = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+            var hostRunTask = host.RunAsync(hostCts.Token);
+
+            using (var scope = host.Services.CreateScope())
             {
-                await Task.Delay(TimeSpan.FromSeconds(10));
+                var manualTriggerInvoker = scope.ServiceProvider.GetRequiredService<IJobManualTriggerInvoker>();
+                var success = false;
 
-                if (!jobRan)
+                // the issue here, is that if we trigger a job manually, but the JobRunner has not yet subscribed / picked up the next token
+                // (there is a delay before it gets one on starting),
+                // then our signal can be lost - so this won't reliably trigger the job.
+                manualTriggerInvoker.Trigger("TestJob");
+                await Task.WhenAny(Task.Delay(TimeSpan.FromSeconds(10), hostCts.Token), Task.Run(async () =>
                 {
-                    continue;
-                }
+                    while (!hostCts.IsCancellationRequested)
+                    {
+                        if (!jobRan)
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(1), hostCts.Token);
+                            continue;
+                        }
 
-                if (!jobTwoRan)
-                {
-                    continue;
-                }
+                        if (!jobTwoRan)
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(1), hostCts.Token);
+                            continue;
+                        }
+                        success = true;
+                    }
 
-                success = true;
-                break;
+                    return false;
+                }, hostCts.Token));
+
+                Assert.True(success);
             }
 
-            /// var signalled = jobRanEvent.WaitOne(65000);
-            Assert.True(success);
 
             ////  signalled = chainedJobRanEvent.WaitOne(65000);
             //Assert.True(signalled);

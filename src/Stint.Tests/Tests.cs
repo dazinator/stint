@@ -11,6 +11,7 @@ namespace Stint.Tests
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
+    using NSubstitute;
     using Stint.Triggers.ManualInvoke;
     using Xunit;
     using Xunit.Abstractions;
@@ -23,7 +24,11 @@ namespace Stint.Tests
         {
             _testOutputHelper = testOutputHelper;
             DefaultServices = new ServiceCollection();
-            DefaultServices.AddLogging(a => a.AddXUnit(_testOutputHelper));
+            DefaultServices.AddLogging(a =>
+            {
+                a.AddXUnit(testOutputHelper);
+                a.SetMinimumLevel(LogLevel.Debug);
+            });
         }
 
         public ServiceCollection DefaultServices { get; set; }
@@ -163,6 +168,8 @@ namespace Stint.Tests
             bool jobRan = false;
             bool jobTwoRan = false;
 
+            //var publisher = Substitute.For<ICalculator>();
+
 
             var mockAnchors = new Dictionary<string, MockAnchorStore>()
             {
@@ -183,6 +190,11 @@ namespace Stint.Tests
             var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
                 {
+                    foreach (var service in DefaultServices)
+                    {
+                        services.Add(service);
+                    }
+
                     services.Configure<JobsConfig>((config) =>
                     {
                         // overdue job will run immdiately
@@ -216,9 +228,16 @@ namespace Stint.Tests
                     });
 
                     services.AddScheduledJobs(a => a.RegisterJobTypes((jobTypes) =>
-                            jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRan = true))
-                                .AddTransient(nameof(TestChainedJob), (sp) => new TestChainedJob(async () => jobTwoRan = true))
-                        ))
+                            jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(() =>
+                                {
+                                    jobRan = true;
+                                    return Task.CompletedTask;
+                                }))
+                                .AddTransient(nameof(TestChainedJob), (sp) => new TestChainedJob(() =>
+                                {
+                                    jobRan = true;
+                                    return Task.CompletedTask;
+                                }))))
                         .AddSingleton<IAnchorStoreFactory>(new MockAnchorStoreFactory((jobName) => mockAnchors[jobName]));
                 }).Build();
 

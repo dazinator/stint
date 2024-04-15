@@ -1,6 +1,5 @@
 namespace Stint.Triggers.OnCompleted
 {
-    using Dazinator.Extensions.DependencyInjection;
     using Microsoft.Extensions.DependencyInjection;
     using Stint.Triggers;
 

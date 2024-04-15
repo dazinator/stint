@@ -18,7 +18,6 @@ namespace Stint
         private readonly IChangeTokenProducer _changeTokenProducer;
         private readonly IPublisher<JobCompletedEventArgs> _publisher;
 
-
         public JobRunner(
             string name,
             ILockProvider lockProvider,
@@ -54,9 +53,6 @@ namespace Stint
 
         public Task RunAsync(CancellationToken cancellationToken)
         {
-            // consider
-            // Subscribing to a change token producer, signalled by a scheduled trigger.
-
             CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             return ExecuteWhenSignalledAsync(CancellationTokenSource.Token);
         }
@@ -64,6 +60,12 @@ namespace Stint
         private async Task ExecuteWhenSignalledAsync(CancellationToken token)
         {
             // DateTime? previousOccurrence = null;
+            using var _jobScope = _logger.BeginScope(new Dictionary<string, object>
+            {
+                {
+                    "StintJobName", Name
+                },
+            });
 
             while (!token.IsCancellationRequested && !Disabled)
             {
@@ -90,11 +92,11 @@ namespace Stint
                         continue;
                     }
 
-
+                    _logger.LogInformation("Job completed.");
                 }
                 catch (Exception e)
                 {
-                    _logger.LogError(e, "Execution error");
+                    _logger.LogError(e, "Job errored");
                 }
             }
 
@@ -187,17 +189,7 @@ namespace Stint
                     return;
                 }
 
-                try
-                {
-                    await job.ExecuteAsync(runInfo, token);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Job error.");
-                    // don't allow job execution exceptions to bubble any further.
-                    // return success and log error.
-                    // jobs must currently handle their own retry logic..
-                }
+                await job.ExecuteAsync(runInfo, token);
             }
         }
     }

@@ -40,12 +40,6 @@ namespace Stint.Triggers.Schedule
                         // This token producer will signal tokens at the specified datetime. Will calculate the next datetime a job should run based on looking at when it last ran, and its schedule etc.
                         var anchorStore = _anchorStoreFactory.GetAnchorStore(jobName);
                         var previousOccurrence = await anchorStore.GetAnchorAsync(cancellationToken);
-
-                       // var lastRunAnchorFactory = lastRanAnchorTaskFactory();
-                       // var previousOccurrence = await lastRunAnchorFactory;
-
-                        //  await anchorStore.GetAnchorAsync(cancellationToken);
-                        //  lastReturnedAnchor = previousOccurrence;
                         if (previousOccurrence == null)
                         {
                             _logger.LogInformation("Job {jobname} has not previously run", jobName);

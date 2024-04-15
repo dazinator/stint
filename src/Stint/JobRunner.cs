@@ -7,10 +7,11 @@ namespace Stint
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
-    using Stint.PubSub;
+    using PubSub;
 
     public class JobRunner : IJobRunner
     {
+        private readonly ILockProvider _lockProvider;
         private readonly IAnchorStore _anchorStore;
         private readonly ILogger<JobRunner> _logger;
         private readonly IServiceScopeFactory _serviceScopeFactory;
@@ -18,17 +19,19 @@ namespace Stint
         private readonly IPublisher<JobCompletedEventArgs> _publisher;
 
         public JobRunner(
-                string name,
-                JobConfig config,
-                IAnchorStore anchorStore,
-                ILogger<JobRunner> logger,
-                IServiceScopeFactory serviceScopeFactory,
-                IChangeTokenProducer changeTokenProducer,
-                IPublisher<JobCompletedEventArgs> publisher
-            )
+            string name,
+            ILockProvider lockProvider,
+            JobConfig config,
+            IAnchorStore anchorStore,
+            ILogger<JobRunner> logger,
+            IServiceScopeFactory serviceScopeFactory,
+            IChangeTokenProducer changeTokenProducer,
+            IPublisher<JobCompletedEventArgs> publisher
+        )
         {
             Name = name;
             Config = config;
+            _lockProvider = lockProvider;
             _anchorStore = anchorStore;
             _logger = logger;
             _serviceScopeFactory = serviceScopeFactory;
@@ -39,6 +42,9 @@ namespace Stint
         private CancellationTokenSource CancellationTokenSource { get; set; }
         public string Name { get; }
         public JobConfig Config { get; }
+
+        public DateTime? Anchor { get; private set; }
+
         public void Dispose()
         {
             CancellationTokenSource?.Cancel();
@@ -47,39 +53,111 @@ namespace Stint
 
         public Task RunAsync(CancellationToken cancellationToken)
         {
-            // consider
-            // Subscribing to a change token producer, signalled by a scheduled trigger.
-
             CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             return ExecuteWhenSignalledAsync(CancellationTokenSource.Token);
         }
 
         private async Task ExecuteWhenSignalledAsync(CancellationToken token)
         {
-            // DateTime? previousOccurrence = null;         
+            // DateTime? previousOccurrence = null;
+            using var _jobScope = _logger.BeginScope(new Dictionary<string, object>
+            {
+                {
+                    "StintJobName", Name
+                },
+            });
+
+
+            // get the current version of the anchor.
+            _logger.LogDebug("Loading Anchor..");
+            await LoadAnchor(token);
 
             while (!token.IsCancellationRequested && !Disabled)
             {
-                await _changeTokenProducer.WaitOneAsync(); // wait for a change token to be signalled.
-                if (token.IsCancellationRequested)
-                {
-                    continue;
-                }
+                await _changeTokenProducer.WaitOneAsync(token);
+                await RunJobOnce(token);
 
-                // run now!
-                var jobInfo = new ExecutionInfo(Name);
-
-                // TODO: Add options for retrying when failure.
-                await ExecuteJob(Config.Type, jobInfo, token);
-                var newAnchor = await _anchorStore.DropAnchorAsync(token);
-
-                _publisher.Publish(this, new JobCompletedEventArgs(this.Name));
-                // wait atelast one second before running again.
-                await Task.Delay(1000);
-
+                // to prevent tight loop of executions in case WaitOneAsync() throws constantly.
+                // Important: We don't put this before WaitOneAsync because we want the JobRunner to grab a change token asap, so that IJobManualTriggerInvoker can trigger the job.
+                // If we trigger a job before the JobRunner has a change token, the signal will be lost.
+                await Task.Delay(TimeSpan.FromSeconds(2));
             }
 
-            _logger.LogInformation("Job cancelled");
+            _logger.LogWarning("Job runner cancelled.");
+        }
+
+        private async Task RunJobOnce(CancellationToken token)
+        {
+            // Console.WriteLine($"Received: {item}");
+            if (token.IsCancellationRequested)
+            {
+                _logger.LogInformation("Cancelled..");
+                return;
+            }
+
+            try
+            {
+                // run now!
+                var jobRan = await ExecuteJobWithinLock(_lockProvider, _anchorStore, _publisher, token);
+                if (!jobRan)
+                {
+                    // the job could not be run - it is likely already running.
+                    // we should wait for the next signal.
+                    _logger.LogWarning("Job did not execute. Will wait for next signal.");
+                    return;
+                }
+
+                _logger.LogInformation("Job completed.");
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Job errored");
+            }
+        }
+
+        private async Task LoadAnchor(CancellationToken token) => Anchor = await _anchorStore.GetAnchorAsync(token);
+
+        private async Task<bool> ExecuteJobWithinLock(ILockProvider lockProvider, IAnchorStore anchorStore, IPublisher<JobCompletedEventArgs> publisher, CancellationToken token)
+        {
+            // aquire lock on job name.
+            // Each configuration of a job has a unique name.
+
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var lockAcquisitionTimeout = CancellationTokenSource.CreateLinkedTokenSource(token, timeoutCts.Token);
+
+            using var acquiredLock = await lockProvider.TryAcquireAsync(Name, lockAcquisitionTimeout.Token);
+            if (acquiredLock == null)
+            {
+                // if we are unable to acquire the lock, we take this as a sign that the job is already running - perhaps on another instance in a distributed scenario.
+                // therefore this isn't necessarily an error, so we log it as a warning.
+                _logger.LogWarning("Unable to acquire lock");
+                return false;
+            }
+
+            // we now have the lock, but if the anchor has changed since we last loaded it,
+            // then we should not run the job as it means the anchor was updated by another instance in between, and so our initial conditions for triggering this job are no longer valid.
+            var isAnchorValid = await CheckAnchorHasNotBeenModified(token);
+            if (!isAnchorValid)
+            {
+                _logger.LogWarning("Job anchor has changed, perhaps job executed by another process.");
+                return false;
+            }
+
+
+            var jobInfo = new ExecutionInfo(Name);
+            // TODO: Add options for retrying when failure.
+            await ExecuteJob(Config.Type, jobInfo, token);
+            Anchor = await anchorStore.DropAnchorAsync(token);
+            publisher.Publish(this, new JobCompletedEventArgs(this.Name));
+            return true;
+        }
+
+        private async Task<bool> CheckAnchorHasNotBeenModified(CancellationToken token)
+        {
+            var latestAnchor = await _anchorStore.GetAnchorAsync(token);
+            var isValid = latestAnchor == Anchor;
+            Anchor = latestAnchor;
+            return isValid;
         }
 
         private bool Disabled { get; set; } = false;
@@ -122,17 +200,7 @@ namespace Stint
                     return;
                 }
 
-                try
-                {
-                    await job.ExecuteAsync(runInfo, token);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Job error.");
-                    // don't allow job execution exceptions to bubble any further.
-                    // return success and log error.
-                    // jobs must currently handle their own retry logic..
-                }
+                await job.ExecuteAsync(runInfo, token);
             }
         }
     }

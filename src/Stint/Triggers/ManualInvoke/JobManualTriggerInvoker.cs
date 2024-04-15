@@ -14,10 +14,12 @@ namespace Stint.Triggers.ManualInvoke
         }
         public bool Trigger(string jobName)
         {
-            _logger.LogInformation("Invoking manual trigger for {jobname}", jobName);
+            //_logger.LogInformation("Invoking manual trigger for {jobname}", jobName);
             if (_registry.TryGetTrigger(jobName, out var trigger))
             {
+                _logger.LogDebug("Invoking manual trigger for {jobname}", jobName);
                 trigger?.Invoke();
+                _logger.LogDebug("Manual trigger invoked for {jobname}", jobName);
                 return true;
             }
 

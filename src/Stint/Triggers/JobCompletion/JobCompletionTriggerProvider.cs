@@ -26,7 +26,6 @@ namespace Stint.Triggers.OnCompleted
         public void AddTriggerChangeTokens(
           string jobName,
           JobConfig jobConfig,
-          Func<Task<DateTime?>> lastRanAnchorTaskFactory,
           ChangeTokenProducerBuilder builder,
           CancellationToken cancellationToken)
         {
@@ -42,6 +41,7 @@ namespace Stint.Triggers.OnCompleted
                     {
                         if (string.Equals(jobCompletedTrigger.JobName, e.Name))
                         {
+                            _logger.LogInformation("Triggering job {jobName} because job {jobCompletedTrigger.JobName} completed", jobName, jobCompletedTrigger.JobName);
                             trigger?.Invoke();
                             break;
                         }

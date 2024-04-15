@@ -1,8 +1,6 @@
 namespace Stint.Triggers.ManualInvoke
 {
-    using System;
     using System.Threading;
-    using System.Threading.Tasks;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
     using Stint;
@@ -22,7 +20,6 @@ namespace Stint.Triggers.ManualInvoke
 
         public void AddTriggerChangeTokens(string jobName,
             JobConfig jobConfig,
-            Func<Task<DateTime?>> lastRanAnchorTaskFactory,
             ChangeTokenProducerBuilder builder,
             CancellationToken cancellationToken)
         {

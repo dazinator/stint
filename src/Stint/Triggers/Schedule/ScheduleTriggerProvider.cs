@@ -13,13 +13,18 @@ namespace Stint.Triggers.Schedule
     public class ScheduleTriggerProvider : ITriggerProvider
     {
         private readonly ILogger<ScheduleTriggerProvider> _logger;
+        private readonly IAnchorStoreFactory _anchorStoreFactory;
 
-        public ScheduleTriggerProvider(ILogger<ScheduleTriggerProvider> logger) => _logger = logger;
+        public ScheduleTriggerProvider(ILogger<ScheduleTriggerProvider> logger, IAnchorStoreFactory anchorStoreFactory)
+        {
+            _logger = logger;
+            _anchorStoreFactory = anchorStoreFactory;
+        }
 
         public void AddTriggerChangeTokens(
           string jobName,
           JobConfig jobConfig,
-          Func<Task<DateTime?>> lastRanAnchorTaskFactory,
+          // Func<Task<DateTime?>> lastRanAnchorTaskFactory,
           ChangeTokenProducerBuilder builder,
           CancellationToken cancellationToken)
         {
@@ -33,18 +38,19 @@ namespace Stint.Triggers.Schedule
                     builder.IncludeDatetimeScheduledTokenProducer(async () =>
                     {
                         // This token producer will signal tokens at the specified datetime. Will calculate the next datetime a job should run based on looking at when it last ran, and its schedule etc.
-                        var lastRunAnchorFactory = lastRanAnchorTaskFactory();
-                        var previousOccurrence = await lastRunAnchorFactory;
-
-                        //  await anchorStore.GetAnchorAsync(cancellationToken);
-                        //  lastReturnedAnchor = previousOccurrence;
+                        var anchorStore = _anchorStoreFactory.GetAnchorStore(jobName);
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            _logger.LogWarning("cancellation already requested");
+                        }
+                        var previousOccurrence = await anchorStore.GetAnchorAsync(cancellationToken);
                         if (previousOccurrence == null)
                         {
                             _logger.LogInformation("Job {jobname} has not previously run", jobName);
                         }
 
                         var fromWhenShouldItNextRun =
-                            previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now therwise get next occurrence from when it last ran!
+                            previousOccurrence ?? DateTime.UtcNow; // if we have never run before, get next occurrence from now, otherwise get next occurrence from when it last ran!
 
                         var nextOccurence = expression.GetNextOccurrence(fromWhenShouldItNextRun);
                         _logger.LogInformation("Next occurrence of {jobname} is @ {nextOccurence} using cron {cronSchedule}", jobName, nextOccurence, scheduleTriggerConfig.Schedule);

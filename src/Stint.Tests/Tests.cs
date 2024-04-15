@@ -43,7 +43,7 @@ namespace Stint.Tests
             //   a => a.AddTransient(nameof(TestJob), (sp) => new TestJob(onJobExecuted))
 
             var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),
-                    (config) => config.Jobs.Add("TestJob", new JobConfig()
+                    (config) => config.Jobs.Add("Can_Run_Scheduled_Job", new JobConfig()
                     {
                         Type = nameof(TestJob),
                         Triggers = new TriggersConfig()
@@ -82,7 +82,7 @@ namespace Stint.Tests
                 ILogger<StintTests> logger = null;
 
                 var host = CreateHostBuilder(lockProvider,
-                    (config) => config.Jobs.Add("TestJobA", new JobConfig()
+                    (config) => config.Jobs.Add("Only_One_Instance_Of_Scheduled_Job_Executed_Concurrently", new JobConfig()
                     {
                         Type = nameof(TestJob),
                         Triggers = new TriggersConfig()
@@ -117,7 +117,7 @@ namespace Stint.Tests
                         logger?.LogInformation("Artificial job processing delay..");
                         await Task.Delay(2000);
 
-                        oldIsRunning = Interlocked.CompareExchange(ref isRunningDetection, null, oldIsRunning);
+                        oldIsRunning = Interlocked.Exchange(ref isRunningDetection, null);
                         if (oldIsRunning != thisInstance)
                         {
                             logger?.LogInformation("Another instance of the job ran before this one completed..");
@@ -156,7 +156,7 @@ namespace Stint.Tests
             var host = Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
                 {
-                    services.Configure<JobsConfig>((config) => config.Jobs.Add("TestJob", new JobConfig()
+                    services.Configure<JobsConfig>((config) => config.Jobs.Add("Can_Run_Overdue_Job", new JobConfig()
                     {
                         Type = nameof(TestJob),
                         Triggers = new TriggersConfig()
@@ -198,13 +198,13 @@ namespace Stint.Tests
             var mockAnchors = new Dictionary<string, MockAnchorStore>()
             {
                 {
-                    "TestJob", new MockAnchorStore
+                    "Can_Chain_Jobs", new MockAnchorStore
                     {
                         CurrentAnchor = DateTime.UtcNow.AddDays(-1)
                     }
                 },
                 {
-                    "TestChainedJob", new MockAnchorStore
+                    "Can_Chain_Jobs_TestChainedJob", new MockAnchorStore
                     {
                         CurrentAnchor = DateTime.UtcNow.AddDays(-1)
                     }
@@ -224,7 +224,7 @@ namespace Stint.Tests
                     services.Configure<JobsConfig>((config) =>
                     {
                         // overdue job will run immdiately
-                        config.Jobs.Add("TestJob", new JobConfig()
+                        config.Jobs.Add("Can_Chain_Jobs", new JobConfig()
                         {
                             Type = nameof(TestJob),
                             Triggers = new TriggersConfig()
@@ -237,7 +237,7 @@ namespace Stint.Tests
                         });
 
                         // we want this job to run off the back of the other job completing so we add a job completion trigger
-                        config.Jobs.Add("TestChainedJob", new JobConfig()
+                        config.Jobs.Add("Can_Chain_Jobs_TestChainedJob", new JobConfig()
                         {
                             Type = nameof(TestChainedJob),
                             Triggers = new TriggersConfig()
@@ -246,7 +246,7 @@ namespace Stint.Tests
                                 {
                                     new JobCompletedTriggerConfig()
                                     {
-                                        JobName = "TestJob"
+                                        JobName = "Can_Chain_Jobs"
                                     }
                                 }
                             }
@@ -256,13 +256,13 @@ namespace Stint.Tests
                     services.AddScheduledJobs(a => a.RegisterJobTypes((jobTypes) =>
                             jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(() =>
                                 {
-                                    logger?.LogInformation("TestJob Ran");
+                                    logger?.LogInformation("Can_Chain_Jobs Ran");
                                     jobRan = true;
                                     return Task.CompletedTask;
                                 }))
                                 .AddTransient(nameof(TestChainedJob), (sp) => new TestChainedJob(() =>
                                 {
-                                    logger?.LogInformation("TestChainedJob Ran");
+                                    logger?.LogInformation("Can_Chain_Jobs_TestChainedJob Ran");
                                     jobTwoRan = true;
                                     return Task.CompletedTask;
                                 }))))
@@ -282,7 +282,7 @@ namespace Stint.Tests
                 // the issue here, is that if we trigger a job manually, but the JobRunner has not yet subscribed / picked up the next token
                 // (there is a delay before it gets one on starting),
                 // then our signal can be lost - so this won't reliably trigger the job.
-                manualTriggerInvoker.Trigger("TestJob");
+                manualTriggerInvoker.Trigger("Can_Chain_Jobs");
                 await Task.WhenAny(Task.Delay(TimeSpan.FromSeconds(10), hostCts.Token), Task.Run(async () =>
                 {
                     while (!hostCts.IsCancellationRequested)

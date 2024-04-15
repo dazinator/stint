@@ -75,7 +75,14 @@ namespace Stint
             while (!token.IsCancellationRequested && !Disabled)
             {
                 await _changeTokenProducer.WaitOneAsync(token);
-                await RunJobOnce(token);
+                var ran = await RunJobOnce(token);
+                if (!ran)
+                {
+                    // if the job did not run, we should wait for the next signal.
+                    // but it could be that it didn't run because of a transient issue, so give some time for this issue to clear.
+
+                    continue;
+                }
 
                 // to prevent tight loop of executions in case WaitOneAsync() throws constantly.
                 // Important: We don't put this before WaitOneAsync because we want the JobRunner to grab a change token asap, so that IJobManualTriggerInvoker can trigger the job.
@@ -86,71 +93,103 @@ namespace Stint
             _logger.LogWarning("Job runner cancelled.");
         }
 
-        private async Task RunJobOnce(CancellationToken token)
+        private async Task<bool> RunJobOnce(CancellationToken token)
         {
             // Console.WriteLine($"Received: {item}");
             if (token.IsCancellationRequested)
             {
                 _logger.LogInformation("Cancelled..");
-                return;
+                return false;
             }
 
             try
             {
                 // run now!
-                var jobRan = await ExecuteJobWithinLock(_lockProvider, _anchorStore, _publisher, token);
-                if (!jobRan)
+
+                // wait for a lock, keep trying to aquire it in periods
+                //var lockAttemptCount = 0;
+                using var acquiredLock = await WaitForLockWithIncreasingDelays(token, (attemptCount) =>
+                    {
+                       // lockAttemptCount = attemptCount;
+                        return TimeSpan.FromSeconds(attemptCount);
+                    },
+                    1);
+                if (acquiredLock == null)
                 {
-                    // the job could not be run - it is likely already running.
-                    // we should wait for the next signal.
-                    _logger.LogWarning("Job did not execute. Will wait for next signal.");
-                    return;
+                    // if we are unable to acquire the lock, we take this as a sign that the job is already running - perhaps on another instance in a distributed scenario.
+                    // therefore this isn't necessarily an error, so we log it as a warning.
+                    // We infer from lock acquisition failure that another instance of the job is running, so we can also await this lock to be released before to detect when this other instance has finished
+                    // and can try to reload the anchor that the other instance will have updated inside its lock upon completion.
+                    _logger.LogWarning("Unable to acquire lock");
+                    return false;
                 }
 
+                // We are inside the lock, let's check if the anchor has changed since we last loaded it. This would be a sign that another instance of the job has run and updated the anchor, since our signal.
+                var isAnchorValid = await CheckAnchorHasNotBeenModified(token);
+                if (!isAnchorValid)
+                {
+                    // We log warning and skip executing the job again.
+                    _logger.LogWarning("Job anchor has changed, perhaps job executed by another process.");
+                    return false;
+                }
+
+                var jobInfo = new ExecutionInfo(Name);
+                // TODO: Add options for retrying when failure.
+                await ExecuteJob(Config.Type, jobInfo, token);
+                Anchor = await _anchorStore.DropAnchorAsync(token);
+                _publisher.Publish(this, new JobCompletedEventArgs(this.Name));
                 _logger.LogInformation("Job completed.");
+                return true;
+
+                // var jobRan = await ExecuteJobWithinLock(_lockProvider, _anchorStore, _publisher, token);
+                // if (!jobRan)
+                // {
+                //     // the job could not be run - it is likely already running.
+                //     // we should wait for the next signal.
+                //     _logger.LogWarning("Job did not execute. Will wait for next signal.");
+                //     return false;
+                // }
+
+
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "Job errored");
+                return false;
             }
+        }
+
+        private async Task<IDisposable> WaitForLockWithIncreasingDelays(CancellationToken token, Func<int, TimeSpan> getLockAcquisitionTimeout, int delayIntervalInMinsBeforeRetry = 1)
+        {
+            //const int attemptIntervalMinutes = 1; // Define how often to retry acquiring the lock
+
+            var attemptCount = 0;
+
+            while (!token.IsCancellationRequested)
+            {
+                attemptCount = attemptCount + 1;
+                var lockAcquisitionAttemptTimeout = getLockAcquisitionTimeout(attemptCount);
+                using var timeoutCts = new CancellationTokenSource(lockAcquisitionAttemptTimeout);
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, timeoutCts.Token);
+
+                var acquiredLock = await _lockProvider.TryAcquireAsync(Name, linkedCts.Token);
+                if (acquiredLock == null)
+                {
+                    // unable to acquire lock, keep waiting
+                    _logger.LogInformation("Unable to acquire lock, another instance might be running. Retrying in {0} min.", delayIntervalInMinsBeforeRetry);
+                    await Task.Delay(TimeSpan.FromMinutes(delayIntervalInMinsBeforeRetry), token);
+                    continue;
+                }
+
+
+                _logger.LogDebug("Lock acquired.");
+                return acquiredLock;
+            }
+
+            return null;
         }
 
         private async Task LoadAnchor(CancellationToken token) => Anchor = await _anchorStore.GetAnchorAsync(token);
-
-        private async Task<bool> ExecuteJobWithinLock(ILockProvider lockProvider, IAnchorStore anchorStore, IPublisher<JobCompletedEventArgs> publisher, CancellationToken token)
-        {
-            // aquire lock on job name.
-            // Each configuration of a job has a unique name.
-
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            using var lockAcquisitionTimeout = CancellationTokenSource.CreateLinkedTokenSource(token, timeoutCts.Token);
-
-            using var acquiredLock = await lockProvider.TryAcquireAsync(Name, lockAcquisitionTimeout.Token);
-            if (acquiredLock == null)
-            {
-                // if we are unable to acquire the lock, we take this as a sign that the job is already running - perhaps on another instance in a distributed scenario.
-                // therefore this isn't necessarily an error, so we log it as a warning.
-                _logger.LogWarning("Unable to acquire lock");
-                return false;
-            }
-
-            // we now have the lock, but if the anchor has changed since we last loaded it,
-            // then we should not run the job as it means the anchor was updated by another instance in between, and so our initial conditions for triggering this job are no longer valid.
-            var isAnchorValid = await CheckAnchorHasNotBeenModified(token);
-            if (!isAnchorValid)
-            {
-                _logger.LogWarning("Job anchor has changed, perhaps job executed by another process.");
-                return false;
-            }
-
-
-            var jobInfo = new ExecutionInfo(Name);
-            // TODO: Add options for retrying when failure.
-            await ExecuteJob(Config.Type, jobInfo, token);
-            Anchor = await anchorStore.DropAnchorAsync(token);
-            publisher.Publish(this, new JobCompletedEventArgs(this.Name));
-            return true;
-        }
 
         private async Task<bool> CheckAnchorHasNotBeenModified(CancellationToken token)
         {

@@ -19,22 +19,16 @@ namespace Stint
 
         public Task<IDisposable> TryAcquireAsync(string name, CancellationToken cancellationToken)
         {
-            if (_acquiredLock != null)
-            {
-                // lock already taken by something.
-                return _nullLock;
-            }
-
             lock (_lock)
             {
                 if (_acquiredLock != null)
                 {
-                    // lock already taken by something.
+                    // If the lock is already taken, return a null lock indicating the acquisition failed.
                     return _nullLock;
                 }
 
+                // Acquire the lock by setting _acquiredLock to a new disposable that will release the lock.
                 _acquiredLock = new InvokeOnDispose(() => ReleaseLock());
-
                 return Task.FromResult(_acquiredLock);
             }
         }

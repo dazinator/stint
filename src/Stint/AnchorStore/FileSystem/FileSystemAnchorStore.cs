@@ -25,36 +25,91 @@ namespace Stint
             var path = Path.Combine(_contentPath, _name + "-anchor.txt");
             _logger.LogDebug("Getting anchor from {path}", path);
 
-            if (File.Exists(path))
+            int retryCount = 0;
+            int maxRetries = 3;
+            int delayMilliseconds = 1000; // Initial delay of 1 second
+
+            while (true)
             {
                 try
                 {
-
-                    // seems to be not working on linux with cifs file share
-                    //   // var anchorText = await File.ReadAllTextAsync(path, token,);
-                    using (var outputFile = new StreamReader(path, true))
+                    if (!File.Exists(path))
                     {
-                        var anchorText = await outputFile.ReadToEndAsync();
-                        if (!DateTime.TryParse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
-                        {
-                            _logger.LogWarning("Anchor file {path} did not contain valid datetime. Returning null anchor.", path);
-                            return null;
-                        }
+                        _logger.LogDebug("No anchor file exists at {path}, returning null anchor.", path);
+                        return null;
+                    }
 
-                        _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", result, path);
-                        return result;
+                    using (var outputFile = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        using (var reader = new StreamReader(outputFile))
+                        {
+                            var anchorText = await reader.ReadToEndAsync();
+                            if (!DateTime.TryParse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
+                            {
+                                _logger.LogWarning("Anchor file {path} did not contain valid datetime. Returning null anchor.", path);
+                                return null;
+                            }
+
+                            _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", result, path);
+                            return result;
+                        }
                     }
                 }
+                catch (IOException ex)
+                {
+                    _logger.LogWarning(ex, "Attempt {retry} failed to read anchor file: {path}. Retrying...", retryCount + 1, path);
+                    if (retryCount++ >= maxRetries || token.IsCancellationRequested)
+                    {
+                        _logger.LogError("Maximum retry attempts reached or operation cancelled, failing with IOException.");
+                        throw;
+                    }
+
+                    await Task.Delay(delayMilliseconds, token);
+                    delayMilliseconds *= 2; // Exponential backoff: double the delay each retry
+                }
+
+                // if (File.Exists(path))
+                // {
+                //     try
+                //     {
+                //
+                //         // seems to be not working on linux with cifs file share
+                //         //   // var anchorText = await File.ReadAllTextAsync(path, token,);
+                //         using (var outputFile = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                //         {
+                //             using (var reader = new StreamReader(outputFile))
+                //             {
+                //                 var anchorText = await reader.ReadToEndAsync();
+                //                 if (!DateTime.TryParse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
+                //                 {
+                //                     _logger.LogWarning("Anchor file {path} did not contain valid datetime. Returning null anchor.", path);
+                //                     return null;
+                //                 }
+                //
+                //                 _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", result, path);
+                //                 return result;
+                //             }
+                //         }
+                //
+                //         // using (var outputFile = new StreamReader(path, true))
+                //         // {
+                //         //     var anchorText = await outputFile.ReadToEndAsync();
+                //         //     if (!DateTime.TryParse(anchorText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var result))
+                //         //     {
+                //         //         _logger.LogWarning("Anchor file {path} did not contain valid datetime. Returning null anchor.", path);
+                //         //         return null;
+                //         //     }
+                //         //
+                //         //     _logger.LogDebug("Anchor {anchorDateTime} loaded from file: {path}", result, path);
+                //         //     return result;
+                //         // }
+                //  }
                 catch (Exception e)
                 {
                     _logger.LogError(e, "Unable to read contents of anchor file: {path}", path);
                     throw;
                 }
-
             }
-
-            _logger.LogDebug("No anchor file exists at {path}, returning null anchor.", path);
-            return null;
         }
 
         public Task<DateTime> DropAnchorAsync(CancellationToken token)

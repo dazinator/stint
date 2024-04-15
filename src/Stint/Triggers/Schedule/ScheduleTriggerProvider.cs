@@ -3,7 +3,6 @@ namespace Stint.Triggers.Schedule
     using System;
     using System.Linq;
     using System.Threading;
-    using System.Threading.Tasks;
     using Cronos;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
@@ -24,7 +23,6 @@ namespace Stint.Triggers.Schedule
         public void AddTriggerChangeTokens(
           string jobName,
           JobConfig jobConfig,
-          // Func<Task<DateTime?>> lastRanAnchorTaskFactory,
           ChangeTokenProducerBuilder builder,
           CancellationToken cancellationToken)
         {

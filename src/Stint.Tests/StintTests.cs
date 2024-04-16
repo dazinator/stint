@@ -11,11 +11,12 @@ namespace Stint.Tests
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
-    using NSubstitute;
     using Stint.Triggers.ManualInvoke;
     using Xunit;
     using Xunit.Abstractions;
+    using Xunit.Categories;
 
+    [IntegrationTest]
     public partial class StintTests
     {
         private readonly ITestOutputHelper _testOutputHelper;
@@ -298,6 +299,7 @@ namespace Stint.Tests
                             await Task.Delay(TimeSpan.FromSeconds(1), hostCts.Token);
                             continue;
                         }
+
                         success = true;
                     }
 
@@ -331,6 +333,45 @@ namespace Stint.Tests
             var nextOccurence = expression.GetNextOccurrence(lastOccurrenceDateTime);
 
             Assert.Equal(expectedNextOccurrenceDateTime, nextOccurence);
+        }
+
+        [Exploratory]
+        [Theory]
+        [InlineData("*/1 * * * *", 180, 3)] // every minute
+        public async Task Runs_To_Schedule_LongRunning(string cron, int testDurationInSeconds, int expectedRunCount)
+        {
+            int jobRanCount = 0;
+            var successEvent = new AutoResetEvent(false);
+
+            var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),
+                    (config) => config.Jobs.Add("Runs_To_Schedule_LongRunning", new JobConfig()
+                    {
+                        Type = nameof(TestJob),
+                        Triggers = new TriggersConfig()
+                        {
+                            Schedules =
+                            {
+                                new ScheduledTriggerConfig()
+                                {
+                                    Schedule = cron
+                                }
+                            }
+                        }
+                    }),
+                    (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () =>
+                    {
+                        var totalRuns = Interlocked.Increment(ref jobRanCount);
+                        if (totalRuns == expectedRunCount)
+                        {
+                            successEvent.Set();
+                        }
+                    })))
+                .Build()
+                .RunAsync();
+
+            var waitTimeSpan = TimeSpan.FromSeconds(testDurationInSeconds + 10); // plus a buffer
+            var signalled = successEvent.WaitOne(waitTimeSpan);
+            Assert.True(signalled);
         }
 
         public IHostBuilder CreateHostBuilder(

@@ -83,7 +83,7 @@ jobs:
       run: dotnet build src --no-restore --configuration Release /p:Version=${{ env.GitVersion_SemVer }}
 
     - name: Test
-      run: dotnet test src -c Release --no-build --no-restore --verbosity normal
+      run: dotnet test src -c Release --no-build --no-restore --verbosity normal --filter Category!=Exploratory
 
     - name: Pack
       run: dotnet pack src -c Release --no-build --no-restore -p:PackageVersion=${{ env.GitVersion_SemVer }} --verbosity normal

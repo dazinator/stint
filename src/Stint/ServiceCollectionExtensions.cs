@@ -4,8 +4,8 @@ namespace Stint
     using Microsoft.Extensions.DependencyInjection;
     using Stint.PubSub;
     using Stint.Triggers.ManualInvoke;
-    using Stint.Triggers.OnCompleted;
     using Stint.Triggers.Schedule;
+    using Triggers.JobCompletion;
 
     public static class ServiceCollectionExtensions
     {

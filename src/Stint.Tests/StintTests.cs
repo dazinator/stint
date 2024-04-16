@@ -340,7 +340,7 @@ namespace Stint.Tests
         [InlineData("*/1 * * * *", 180, 3)] // every minute
         public async Task Runs_To_Schedule_LongRunning(string cron, int testDurationInSeconds, int expectedRunCount)
         {
-            int jobRanCount = 0;
+            var jobRanCount = 0;
             var successEvent = new AutoResetEvent(false);
 
             var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),

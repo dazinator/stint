@@ -1,4 +1,4 @@
-namespace Stint.Triggers.OnCompleted
+namespace Stint.Triggers.JobCompletion
 {
     using Microsoft.Extensions.DependencyInjection;
     using Stint.Triggers;

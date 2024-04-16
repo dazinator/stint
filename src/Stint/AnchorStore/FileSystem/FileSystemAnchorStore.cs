@@ -25,9 +25,9 @@ namespace Stint
             var path = Path.Combine(_contentPath, _name + "-anchor.txt");
             _logger.LogDebug("Getting anchor from {path}", path);
 
-            int retryCount = 0;
-            int maxRetries = 3;
-            int delayMilliseconds = 1000; // Initial delay of 1 second
+            var retryCount = 0;
+            var maxRetries = 3;
+            var delayMilliseconds = 1000; // Initial delay of 1 second
 
             while (true)
             {

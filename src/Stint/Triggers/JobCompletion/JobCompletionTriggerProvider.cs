@@ -1,9 +1,7 @@
-namespace Stint.Triggers.OnCompleted
+namespace Stint.Triggers.JobCompletion
 {
-    using System;
     using System.Linq;
     using System.Threading;
-    using System.Threading.Tasks;
     using Microsoft.Extensions.Logging;
     using Microsoft.Extensions.Primitives;
     using Stint;
@@ -41,7 +39,7 @@ namespace Stint.Triggers.OnCompleted
                     {
                         if (string.Equals(jobCompletedTrigger.JobName, e.Name))
                         {
-                            _logger.LogInformation("Triggering job {jobName} because job {jobCompletedTrigger.JobName} completed", jobName, jobCompletedTrigger.JobName);
+                            _logger.LogInformation("Triggering job {jobName} because job {CompletedJobName} completed", jobName, jobCompletedTrigger.JobName);
                             trigger?.Invoke();
                             break;
                         }

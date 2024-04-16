@@ -108,9 +108,9 @@ namespace Stint
                 //var lockAttemptCount = 0;
                 using var acquiredLock = await WaitForLockWithIncreasingDelays(token, (attemptCount) =>
                     {
-                       // lockAttemptCount = attemptCount;
-                       var multiplier = Math.Max(attemptCount, 10);
-                       var timeoutSecs = multiplier * 10;
+                        // lockAttemptCount = attemptCount;
+                        var multiplier = Math.Max(attemptCount, 10);
+                        var timeoutSecs = multiplier * 10;
                         return TimeSpan.FromSeconds(timeoutSecs);
                     },
                     1);
@@ -165,7 +165,7 @@ namespace Stint
 
             while (!token.IsCancellationRequested)
             {
-                attemptCount = attemptCount + 1;
+                attemptCount++;
                 var lockAcquisitionAttemptTimeout = getLockAcquisitionTimeout(attemptCount);
                 using var timeoutCts = new CancellationTokenSource(lockAcquisitionAttemptTimeout);
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, timeoutCts.Token);

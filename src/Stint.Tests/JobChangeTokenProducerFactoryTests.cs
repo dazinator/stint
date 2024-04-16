@@ -1,8 +1,6 @@
 namespace Stint.Tests
 {
     using System;
-    using System.Collections.Generic;
-    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using Dazinator.Extensions.DependencyInjection;
@@ -11,7 +9,7 @@ namespace Stint.Tests
     using Microsoft.Extensions.Options;
     using Xunit;
 
-    public partial class JobChangeTokenProducerFactoryTests
+    public class JobChangeTokenProducerFactoryTests
     {
         [Fact(Skip = "Not yet working consistently on github build server")]
         public void Can_Get_ChangeToken_ForJobWithMultipleSchedules()

@@ -17,7 +17,7 @@ namespace Stint.Tests
     using Xunit.Categories;
 
     [IntegrationTest]
-    public partial class StintTests
+    public class StintTests
     {
         private readonly ITestOutputHelper _testOutputHelper;
 

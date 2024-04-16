@@ -79,14 +79,12 @@ namespace Stint
                 if (!ran)
                 {
                     // if the job did not run, we should wait for the next signal.
-                    // but it could be that it didn't run because of a transient issue, so give some time for this issue to clear.
-
                     continue;
                 }
 
-                // to prevent tight loop of executions in case WaitOneAsync() throws constantly.
-                // Important: We don't put this before WaitOneAsync because we want the JobRunner to grab a change token asap, so that IJobManualTriggerInvoker can trigger the job.
-                // If we trigger a job before the JobRunner has a change token, the signal will be lost.
+                // We ran. To prevent tight loop of executions in case WaitOneAsync() throws constantly or in case job cron is constantly triggering and job is instantly running, we add a delay.
+                // Important: We deliberately don't put this delay at the start of the loop, before WaitOneAsync() above because we want the JobRunner to grab a change token asap, so that IJobManualTriggerInvoker can trigger the job via that change token.
+                // If we trigger a job before the JobRunner has grabbed a change token, that  signal will be lost. (TODO this could be fixed in future by queing the signal from IJobManualTriggerInvoker and processing it later)
                 await Task.Delay(TimeSpan.FromSeconds(2));
             }
 
@@ -111,15 +109,15 @@ namespace Stint
                 using var acquiredLock = await WaitForLockWithIncreasingDelays(token, (attemptCount) =>
                     {
                        // lockAttemptCount = attemptCount;
-                        return TimeSpan.FromSeconds(attemptCount);
+                       var multiplier = Math.Max(attemptCount, 10);
+                       var timeoutSecs = multiplier * 10;
+                        return TimeSpan.FromSeconds(timeoutSecs);
                     },
                     1);
                 if (acquiredLock == null)
                 {
                     // if we are unable to acquire the lock, we take this as a sign that the job is already running - perhaps on another instance in a distributed scenario.
                     // therefore this isn't necessarily an error, so we log it as a warning.
-                    // We infer from lock acquisition failure that another instance of the job is running, so we can also await this lock to be released before to detect when this other instance has finished
-                    // and can try to reload the anchor that the other instance will have updated inside its lock upon completion.
                     _logger.LogWarning("Unable to acquire lock");
                     return false;
                 }

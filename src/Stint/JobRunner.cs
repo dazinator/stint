@@ -174,7 +174,7 @@ namespace Stint
                 if (acquiredLock == null)
                 {
                     // unable to acquire lock, keep waiting
-                    _logger.LogInformation("Unable to acquire lock, another instance might be running. Retrying in {0} min.", delayIntervalInMinsBeforeRetry);
+                    _logger.LogWarning("Unable to acquire lock, another instance might be running. Retrying in {0} min.", delayIntervalInMinsBeforeRetry);
                     await Task.Delay(TimeSpan.FromMinutes(delayIntervalInMinsBeforeRetry), token);
                     continue;
                 }

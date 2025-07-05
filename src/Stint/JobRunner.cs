@@ -2,6 +2,7 @@ namespace Stint
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,8 @@ namespace Stint
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
         private readonly IPublisher<JobCompletedEventArgs> _publisher;
+
+        private static readonly ActivitySource ActivitySource = new("Stint");
 
         public JobRunner(
             string name,
@@ -91,12 +94,23 @@ namespace Stint
             _logger.LogWarning("Job runner cancelled.");
         }
 
+        private const string ActivityNameRunJobOnce = "JobRunner.RunJobOnce";
+        private const string ActivityNameWaitForLock = "JobRunner.WaitForLock";
         private async Task<bool> RunJobOnce(CancellationToken token)
         {
-            // Console.WriteLine($"Received: {item}");
+
+            using var activity = ActivitySource.StartActivity(
+                ActivityNameRunJobOnce,
+                ActivityKind.Internal,
+                parentContext: default // explicitly no parent
+            );
+            activity?.SetTag("job.name", Name);
+            activity?.SetTag("job.type", Config?.Type);
+
             if (token.IsCancellationRequested)
             {
                 _logger.LogInformation("Cancelled..");
+                activity?.SetStatus(ActivityStatusCode.Error, "Cancelled");                        
                 return false;
             }
 
@@ -106,6 +120,7 @@ namespace Stint
 
                 // wait for a lock, keep trying to aquire it in periods
                 //var lockAttemptCount = 0;
+                using var lockActivity = ActivitySource.StartActivity(ActivityNameWaitForLock, ActivityKind.Internal);
                 using var acquiredLock = await WaitForLockWithIncreasingDelays(token, (attemptCount) =>
                     {
                         // lockAttemptCount = attemptCount;
@@ -114,28 +129,40 @@ namespace Stint
                         return TimeSpan.FromSeconds(timeoutSecs);
                     },
                     1);
+
+                lockActivity?.SetTag("lock.acquired", acquiredLock != null);
                 if (acquiredLock == null)
                 {
                     // if we are unable to acquire the lock, we take this as a sign that the job is already running - perhaps on another instance in a distributed scenario.
                     // therefore this isn't necessarily an error, so we log it as a warning.
                     _logger.LogWarning("Unable to acquire lock");
+                    activity?.SetStatus(ActivityStatusCode.Ok, "Lock not acquired");
                     return false;
                 }
 
                 // We are inside the lock, let's check if the anchor has changed since we last loaded it. This would be a sign that another instance of the job has run and updated the anchor, since our signal.
                 var isAnchorValid = await CheckAnchorHasNotBeenModified(token);
+                activity?.SetTag("anchor.valid", isAnchorValid);
                 if (!isAnchorValid)
                 {
                     // We log warning and skip executing the job again.
                     _logger.LogWarning("Job anchor has changed, perhaps job executed by another process.");
+                    activity?.SetStatus(ActivityStatusCode.Ok, "Anchor changed - skip");
                     return false;
                 }
 
                 var jobInfo = new ExecutionInfo(Name);
                 // TODO: Add options for retrying when failure.
+                using var jobExecActivity = ActivitySource.StartActivity("Job.Execute", ActivityKind.Internal);
                 await ExecuteJob(Config.Type, jobInfo, token);
+                jobExecActivity?.SetStatus(ActivityStatusCode.Ok);
+
                 Anchor = await _anchorStore.DropAnchorAsync(token);
                 _publisher.Publish(this, new JobCompletedEventArgs(this.Name));
+                activity?.SetStatus(ActivityStatusCode.Ok, "Job completed");
+                activity?.SetTag("job.outcome", "success");
+                activity?.SetTag("job.anchor.updated", Anchor?.ToString("O")); // ISO 8601 format
+
                 _logger.LogInformation("Job completed.");
                 return true;
 
@@ -152,7 +179,10 @@ namespace Stint
             }
             catch (Exception e)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, e.Message);
+                activity?.RecordException(e);         
                 _logger.LogError(e, "Job errored");
+                activity?.SetTag("job.outcome", "failure");
                 return false;
             }
         }

@@ -1,20 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <UserSecretsId>stint-Scheduler-E8179A4C-7A71-4C4D-A098-61C34BA1CD42</UserSecretsId>
     <PackageName>Stint.Scheduler</PackageName>
-    <LangVersion>9</LangVersion>
+    <LangVersion>preview</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Changify" Version="0.2.0-alpha.57" />
-    <PackageReference Include="Changify.Options" Version="0.1.0-alpha.32" />
-    <PackageReference Include="Cronos" Version="0.7.0" />
-    <PackageReference Include="Dazinator.Extensions.DependencyInjection.NamedServices" Version="1.1.0-alpha.81" /> 
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.1.12" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.12" />
-    <PackageReference Include="MIcrosoft.Extensions.Logging.Console" Version="3.1.12" />
+    <PackageReference Include="Changify" />
+    <PackageReference Include="Changify.Options" />
+    <PackageReference Include="Cronos" />
+    <PackageReference Include="Dazinator.Extensions.DependencyInjection.NamedServices"/> 
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="MIcrosoft.Extensions.Logging.Console" />
     <!--<PackageReference Include="System.Threading.Channels" Version="5.0.0" />-->
   </ItemGroup>
 

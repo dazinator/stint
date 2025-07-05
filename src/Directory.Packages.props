@@ -1,0 +1,69 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup Label="Build">
+    <PackageVersion Include="Microsoft.SourceLink.AzureRepos.Git" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />   
+  </ItemGroup>
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="Shouldly" Version="4.2.1" />
+    <PackageVersion Include="NSubstitute" Version="5.1.0" />
+    <PackageVersion Include="Bogus" Version="34.0.2" />
+    <PackageVersion Include="Testcontainers" Version="3.0.0" />
+    <PackageVersion Include="Verify.Xunit" Version="26.4.5" />
+    <PackageVersion Include="Verify.Bunit" Version="12.0.0" />
+    <PackageVersion Include="bunit.core" Version="1.36.0" />
+    <PackageVersion Include="bunit.web" Version="1.36.0" />
+    <PackageVersion Include="MartinCostello.Logging.XUnit" Version="0.3.0" />
+    <PackageVersion Include="MELT" Version="0.9.0" />
+    <PackageVersion Include="MELT.Xunit" Version="0.9.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />    
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="xunit.categories" Version="2.0.8" />
+    <PackageVersion Include="coverlet.collector" Version="3.2.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.33" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.Testing" Version="8.10.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.UserSecrets" Version="8.0.1" />    
+    <PackageVersion Include="SerilogTracing" Version="2.3.1" />
+    <PackageVersion Include="SerilogTracing.Expressions" Version="2.3.1" />
+    <PackageVersion Include="Serilog.Settings.Configuration" Version="8.0.4" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.0.1-dev-00953" />
+    <PackageVersion Include="Serilog.Sinks.XUnit" Version="3.0.19" />
+    <PackageVersion Include="Serilog.Sinks.Seq" Version="8.0.0" />
+    <PackageVersion Include="Serilog.Extensions.Logging" Version="8.0.0" />    
+    <PackageVersion Include="BenchmarkDotNet" Version="0.13.12" />   
+  </ItemGroup>
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageVersion Include="MIcrosoft.Extensions.Logging.Console" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="8.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.1" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.11.2" />
+    <PackageVersion Include="System.Threading.RateLimiting" Version="9.0.6" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta1.20574.7" />
+    <PackageVersion Include="Changify" Version="0.2.0-alpha.57" />
+    <PackageVersion Include="Changify.Options" Version="0.1.0-alpha.32" />
+    <PackageVersion Include="Cronos" Version="0.7.0" />
+    <PackageVersion Include="Dazinator.Extensions.DependencyInjection.NamedServices" Version="1.1.0-alpha.81" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices"  Version="8.0.1"/>
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Systemd"  Version="8.0.1"/>
+    
+    <!--<PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.9.0" />-->
+  </ItemGroup> 
+</Project>

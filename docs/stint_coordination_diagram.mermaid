@@ -1,0 +1,49 @@
+sequenceDiagram
+    participant I1 as Instance 1
+    participant I2 as Instance 2
+    participant I3 as Instance 3
+    participant Lock as Distributed Lock Provider
+    participant Anchor as Anchor Store
+    
+    Note over I1,I3: Job "DailyReport" scheduled via cron (e.g., 0 2 * * *)
+    Note over I1,I3: All instances detect it's time to run the job
+    
+    par Instance 1 attempts
+        I1->>Lock: TryAcquire("DailyReport")
+        Lock-->>I1: Success (Lock acquired)
+    and Instance 2 attempts
+        I2->>Lock: TryAcquire("DailyReport")
+        Lock-->>I2: Failed (Lock held by I1)
+    and Instance 3 attempts
+        I3->>Lock: TryAcquire("DailyReport")
+        Lock-->>I3: Failed (Lock held by I1)
+    end
+    
+    Note over I1: Instance 1 has the lock
+    I1->>Anchor: GetLastRun("DailyReport")
+    Anchor-->>I1: 2024-01-04 02:00:00
+    
+    Note over I1: Checks if job should run based on cron and last run
+    alt Job should run
+        I1->>I1: Execute Job Logic
+        I1->>Anchor: UpdateLastRun("DailyReport", now)
+        Note over I1: Job completed successfully
+    else Job already ran (anchor recent)
+        Note over I1: Skip execution - another instance already ran it
+    end
+    
+    I1->>Lock: Release("DailyReport")
+    
+    Note over I2,I3: Failed instances wait and retry
+    
+    I2->>Lock: TryAcquire("DailyReport") (after delay)
+    Lock-->>I2: Success (I1 released the lock)
+    
+    I2->>Anchor: GetLastRun("DailyReport")
+    Anchor-->>I2: 2024-01-04 02:00:00 (updated by I1)
+    
+    Note over I2: Sees job already executed - anchor is recent
+    I2->>Lock: Release("DailyReport")
+    
+    Note over I1,I3: All instances now wait for next scheduled time
+    Note over I1,I3: Process repeats - any instance can win the lock

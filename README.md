@@ -3,6 +3,7 @@
 > a fixed period of time during which a person holds a job or position
 
 Stint allows your existing dotnet application to run jobs.
+It can be scaled to multiple nodes, ensuring that scheduled jobs are not run concurrently on multiple nodes.
 
 ## Features
 
@@ -197,9 +198,14 @@ Once the job has completed - even if it throws an exception, the scheduler will 
 
 #### Locking
 
-If you run multiple instances of the job runner application, you'll want to configure the `ILockProvider` so that the same scheduled job doesn't run simulataneously on multiple nodes / processes.
+If you run multiple instances of the job runner application, you'll want to configure two key abstractions
 
-Implement this interface to use whatever distributed lock mechanism you want:
+- `ILockProvider` 
+- `IAnchorStore`
+
+The `ILockProvider` is used to impelement your distributed lock using whatever technology you like (redis, sql etc)
+The `IAnchorStore` is used to ensure all instances can get and persist the job anchor to a location all nodes can see - eg. a central database, or a shared file system etc.
+
 
 ```csharp
     public interface ILockProvider
@@ -225,6 +231,10 @@ Then register your lock provider:
 ```
 
 The lock provider that is registered by default, is an empty lock provider, which means there is no locking, and jobs will be allowed to execute simultaneosly.
+
+This is how it works:
+
+![Stint Library - Multi-Instance Job Coordination](./docs/stint_coordination_diagram.png "How Stint coordinates scheduled jobs across multiple instances")
 
 #### Events
 

@@ -136,7 +136,7 @@ namespace Stint
                     // if we are unable to acquire the lock, we take this as a sign that the job is already running - perhaps on another instance in a distributed scenario.
                     // therefore this isn't necessarily an error, so we log it as a warning.
                     _logger.LogWarning("Unable to acquire lock");
-                    activity?.SetStatus(ActivityStatusCode.Ok, "Lock not acquired");
+                    activity?.SetStatus(ActivityStatusCode.Ok, "Lock not acquired");                   
                     return false;
                 }
 
@@ -148,6 +148,7 @@ namespace Stint
                     // We log warning and skip executing the job again.
                     _logger.LogWarning("Job anchor has changed, perhaps job executed by another process.");
                     activity?.SetStatus(ActivityStatusCode.Ok, "Anchor changed - skip");
+                    activity?.SetTag("job.outcome", "skipped");
                     return false;
                 }
 

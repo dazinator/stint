@@ -3,6 +3,7 @@ namespace Stint
     using System.Threading;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
     using PubSub;
 
     public class JobRunnerFactory : IJobRunnerFactory
@@ -14,6 +15,7 @@ namespace Stint
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IPublisher<JobCompletedEventArgs> _publisher;
         private readonly ILockProvider _lockProvider;
+        private readonly IOptions<ActivityOptions> _activityOptions;
 
         public JobRunnerFactory(
             ILogger<JobRunnerFactory> logger,
@@ -22,7 +24,8 @@ namespace Stint
             ILogger<JobRunner> jobRunnerLogger,
             IServiceScopeFactory serviceScopeFactory,
             IPublisher<JobCompletedEventArgs> publisher,
-            ILockProvider lockProvider)
+            ILockProvider lockProvider,
+            IOptions<ActivityOptions> activityOptions)
         {
             _logger = logger;
             _jobChangeTokenProducerFactory = jobChangeTokenProducerFactory;
@@ -31,6 +34,7 @@ namespace Stint
             _serviceScopeFactory = serviceScopeFactory;
             _publisher = publisher;
             this._lockProvider = lockProvider;
+            _activityOptions = activityOptions;
         }
 
         public IJobRunner CreateJobRunner(string jobName, JobConfig config, CancellationToken stoppingToken)
@@ -38,7 +42,7 @@ namespace Stint
             _logger.LogDebug("Creating job runner for job {jobName}", jobName);
             var anchorStore = _anchorStoreFactory.GetAnchorStore(jobName);
             var changeTokenProducer = _jobChangeTokenProducerFactory.GetChangeTokenProducer(jobName, config, stoppingToken);
-            var newJobRunner = new JobRunner(jobName, _lockProvider, config, anchorStore, _jobRunnerLogger, _serviceScopeFactory, changeTokenProducer, _publisher);
+            var newJobRunner = new JobRunner(jobName, _lockProvider, config, anchorStore, _jobRunnerLogger, _serviceScopeFactory, changeTokenProducer, _publisher, _activityOptions.Value);
             return newJobRunner;
         }
     }

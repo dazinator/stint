@@ -89,5 +89,11 @@ namespace Stint
             return this;
         }
 
+        public StintServicesBuilder ConfigureActivityTags(Action<ActivityOptions> configure = null)
+        {
+            Services.Configure<ActivityOptions>(configure);
+            return this;
+        }
+
     }
 }

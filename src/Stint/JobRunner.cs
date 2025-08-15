@@ -18,7 +18,7 @@ namespace Stint
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IChangeTokenProducer _changeTokenProducer;
         private readonly IPublisher<JobCompletedEventArgs> _publisher;
-
+        private readonly ActivityOptions _activityOptions;
         private static readonly ActivitySource ActivitySource = new("Stint");
 
         public JobRunner(
@@ -29,8 +29,8 @@ namespace Stint
             ILogger<JobRunner> logger,
             IServiceScopeFactory serviceScopeFactory,
             IChangeTokenProducer changeTokenProducer,
-            IPublisher<JobCompletedEventArgs> publisher
-        )
+            IPublisher<JobCompletedEventArgs> publisher,
+            ActivityOptions activityOptions)
         {
             Name = name;
             Config = config;
@@ -40,6 +40,7 @@ namespace Stint
             _serviceScopeFactory = serviceScopeFactory;
             _changeTokenProducer = changeTokenProducer;
             _publisher = publisher;
+            _activityOptions = activityOptions;
         }
 
         private CancellationTokenSource CancellationTokenSource { get; set; }
@@ -96,14 +97,19 @@ namespace Stint
 
         private const string ActivityNameRunJobOnce = "JobRunner.RunJobOnce";
         private const string ActivityNameWaitForLock = "JobRunner.WaitForLock";
+        private const string ActivityNameJobExecute = "Job.Execute";
+
+
         private async Task<bool> RunJobOnce(CancellationToken token)
         {
 
             using var activity = ActivitySource.StartActivity(
                 ActivityNameRunJobOnce,
                 ActivityKind.Internal,
+                tags: _activityOptions.GlobalTags,
                 parentContext: default // explicitly no parent
             );
+            
             activity?.SetTag("job.name", Name);
             activity?.SetTag("job.type", Config?.Type);
 
@@ -120,7 +126,7 @@ namespace Stint
 
                 // wait for a lock, keep trying to aquire it in periods
                 //var lockAttemptCount = 0;
-                using var lockActivity = ActivitySource.StartActivity(ActivityNameWaitForLock, ActivityKind.Internal);
+                using var lockActivity = ActivitySource.StartActivity(name: ActivityNameWaitForLock, kind: ActivityKind.Internal, tags: _activityOptions.GlobalTags);
                 using var acquiredLock = await WaitForLockWithIncreasingDelays(token, (attemptCount) =>
                     {
                         // lockAttemptCount = attemptCount;
@@ -154,7 +160,7 @@ namespace Stint
 
                 var jobInfo = new ExecutionInfo(Name);
                 // TODO: Add options for retrying when failure.
-                using var jobExecActivity = ActivitySource.StartActivity("Job.Execute", ActivityKind.Internal);
+                using var jobExecActivity = ActivitySource.StartActivity(name: ActivityNameJobExecute, kind: ActivityKind.Internal, tags: _activityOptions.GlobalTags);
                 await ExecuteJob(Config.Type, jobInfo, token);
                 jobExecActivity?.SetStatus(ActivityStatusCode.Ok);
 

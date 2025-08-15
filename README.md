@@ -246,3 +246,17 @@ All this means, job chaning works by default in the same process, becuase the pu
 If you want to allow other worker nodes to run jobs in the chain you'll have to register custom implementations of `IPublisher<JobCompletedEventArgs>' and `ISubscriber<JobCompletedEventArgs>'.
 When the job completed message is published, you can then take control of the publish and publish a message to a distributed pub sub system. 
 Likewise when the JobCompletion trigger subscribes you can take control of the subscription and subsribe to your distributed pub sub topic.
+
+
+#### Instrumentation
+
+`stint` creates `Activity` for each job execution. You can configure some global tags to be applied on all job activities (useful for tenant name, environment name etc):
+
+```csharp
+
+ options
+    .ConfigureActivityTags((activityOptions) => {
+                            activityOptions.GlobalTags.Add(new KeyValuePair<string, object?>("TestTag", "TestValue"));                          
+                        });
+```
+

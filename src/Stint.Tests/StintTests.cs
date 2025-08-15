@@ -1,7 +1,9 @@
 namespace Stint.Tests
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Globalization;
     using System.Linq;
     using System.Threading;
@@ -65,6 +67,95 @@ namespace Stint.Tests
 
             var signalled = jobRanEvent.WaitOne(62000);
             Assert.True(signalled);
+        }
+
+        [Fact]
+        public void Can_Set_Activity_GlobalTags()
+        {
+            var jobRanEvent = new AutoResetEvent(false);
+            var capturedActivities = new ConcurrentBag<Activity>();
+
+            // Set up ActivityListener to capture activities - must be done BEFORE creating the host
+            using var activityListener = new ActivityListener
+            {
+                ShouldListenTo = source =>
+                {
+                    _testOutputHelper.WriteLine($"ActivitySource detected: {source.Name}");
+                    return source.Name.StartsWith("Stint") || source.Name.Contains("job", StringComparison.OrdinalIgnoreCase);
+                },
+                Sample = (ref ActivityCreationOptions<ActivityContext> options) =>
+                {
+                    _testOutputHelper.WriteLine($"Activity sampling: {options.Name}");
+                    return ActivitySamplingResult.AllDataAndRecorded;
+                },
+                ActivityStarted = activity =>
+                {
+                    _testOutputHelper.WriteLine($"Activity started: {activity.OperationName}, Tags: {string.Join(", ", activity.Tags.Select(t => $"{t.Key}={t.Value}"))}");
+                    capturedActivities.Add(activity);
+                }
+            };
+
+            ActivitySource.AddActivityListener(activityListener);
+
+            var hostBuilderTask = CreateHostBuilder(new SingletonLockProvider(),
+                configureJobsConfig:
+                    (config) => config.Jobs.Add("Can_Set_Activity_GlobalTags", new JobConfig()
+                    {
+                        Type = nameof(TestJob),
+                        Triggers = new TriggersConfig()
+                        {
+                            Schedules =
+                            {
+                        new ScheduledTriggerConfig()
+                        {
+                            Schedule = "* * * * *"
+                        }
+                            }
+                        }
+                    }),
+                registerJobTypes:
+                    (jobTypes) => jobTypes.AddTransient(nameof(TestJob), (sp) => new TestJob(async () => jobRanEvent.Set())),
+                configureStint:
+                    (builder) => {
+                        // Replace this incorrect line:
+                        // activityOptions.GlobalTags.Add(new ["TestTag", "TestValue"]);
+
+                        // With the correct usage:
+                        
+                        builder.ConfigureActivityTags((activityOptions) => {
+                            activityOptions.GlobalTags.Add(new KeyValuePair<string, object?>("TestTag", "TestValue"));
+                            //activityOptions.GlobalTags.Add(new ["TestTag", "TestValue"]);
+                        });
+
+                    })
+                .Build()
+                .RunAsync();
+
+            var signalled = jobRanEvent.WaitOne(62000);
+            Assert.True(signalled);
+
+            // Debug: Log all captured activities
+            _testOutputHelper.WriteLine($"Captured {capturedActivities.Count} activities");
+            foreach (var activity in capturedActivities)
+            {
+                _testOutputHelper.WriteLine($"Activity: {activity.OperationName}, Tags: {string.Join(", ", activity.Tags.Select(t => $"{t.Key}={t.Value}"))}");
+            }
+
+            // Based on the output, we can see that activities are created but don't have the global tags
+            // Let's check specifically for the TestTag
+            var activitiesWithGlobalTag = capturedActivities
+                .Where(a => a.Tags.Any(tag => tag.Key == "TestTag" && tag.Value == "TestValue"))
+                .ToList();
+
+            // If this fails, it means the global tags configuration isn't working
+            Assert.NotEmpty(activitiesWithGlobalTag);
+
+            // Alternative assertion - check that at least the main job activity has the global tag
+            var runJobOnceActivity = capturedActivities
+                .FirstOrDefault(a => a.OperationName == "JobRunner.RunJobOnce");
+
+            Assert.NotNull(runJobOnceActivity);
+            Assert.Contains(runJobOnceActivity.Tags, tag => tag.Key == "TestTag" && tag.Value == "TestValue");
         }
 
         [Fact]
@@ -376,8 +467,9 @@ namespace Stint.Tests
 
         public IHostBuilder CreateHostBuilder(
             ILockProvider lockProvider,
-            Action<JobsConfig> configureScheduler,
-            Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes
+            Action<JobsConfig> configureJobsConfig,
+            Action<NamedServiceRegistrationsBuilder<IJob>> registerJobTypes,
+            Action<StintServicesBuilder> configureStint = null
         ) =>
             Host.CreateDefaultBuilder()
                 .ConfigureServices((hostContext, services) =>
@@ -387,10 +479,16 @@ namespace Stint.Tests
                         services.Add(service);
                     }
 
-                    services.Configure(configureScheduler);
+                    services.Configure(configureJobsConfig);
 
-                    services.AddScheduledJobs((options) => options.AddLockProviderInstance(lockProvider)
-                        .RegisterJobTypes(registerJobTypes));
+                    services.AddScheduledJobs((options) =>
+                    {
+                        options.AddLockProviderInstance(lockProvider)
+                                .RegisterJobTypes(registerJobTypes);
+
+                        configureStint?.Invoke(options);
+
+                    });
                 });
 
         public class TestJob : IJob
